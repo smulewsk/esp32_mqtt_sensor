@@ -2,8 +2,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -141,13 +139,8 @@ static int battery_percent_from_mv(int mv)
     return (int)(((mv - BAT_MIN_MV) * 100) / (BAT_MAX_MV - BAT_MIN_MV));
 }
 
-static void battery_task(void *pvParameters)
+static void battery_status_publish()
 {
-    // wait for mqtt client object to be created
-    while (!mqtt_client) {
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-
     float batt_v = read_battery_voltage();
     int batt_mv = (int)roundf(batt_v * 1000.0f);
     int pct = battery_percent_from_mv(batt_mv);
@@ -158,12 +151,25 @@ static void battery_task(void *pvParameters)
     if (mqtt_connected && mqtt_client) {
         int msg_id = esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC, payload, len, 1, 0);
         ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
-        // brief delay to let the client send the packet
-        vTaskDelay(pdMS_TO_TICKS(1000));
     } else {
         ESP_LOGW(TAG, "MQTT not connected, skipping publish: %s", payload);
     }
+}
 
+void fw_version_publish(const char *fw_version)
+{
+    if (mqtt_connected && mqtt_client) {
+        char ver_topic[128];
+        snprintf(ver_topic, sizeof(ver_topic), "%s/version", MQTT_TOPIC);
+        esp_mqtt_client_publish(mqtt_client, ver_topic, fw_version, 0, 1, 1);
+    } else {
+        ESP_LOGW(TAG, "MQTT not connected; version not published");
+    }
+}
+
+
+void deep_sleep()
+{
     // cleanup MQTT and WiFi before deep sleep
     if (mqtt_client) {
         esp_mqtt_client_stop(mqtt_client);
@@ -175,14 +181,18 @@ static void battery_task(void *pvParameters)
     ESP_LOGI(TAG, "Entering deep sleep for %d seconds", REPORT_INTERVAL_SECONDS);
     esp_deep_sleep_try((uint64_t)REPORT_INTERVAL_SECONDS * 1000000ULL);
     esp_deep_sleep_start();
-
-    // not reached
-    vTaskDelete(NULL);
 }
 
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting esp32_mqtt_sensor");
+    // publish firmware version and log it
+#ifdef PROJECT_VERSION
+    const char *fw_version = PROJECT_VERSION;
+#else
+    const char *fw_version = "unknown";
+#endif
+    ESP_LOGI(TAG, "Firmware version: %s", fw_version);
 
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -218,23 +228,9 @@ void app_main(void)
 
     wait_until_connected(&mqtt_connected, 30000);
 
-    // publish firmware version and log it
-#ifdef PROJECT_VERSION
-    const char *fw_version = PROJECT_VERSION;
-#else
-    const char *fw_version = "unknown";
-#endif
-    ESP_LOGI(TAG, "Firmware version: %s", fw_version);
-    if (mqtt_connected && mqtt_client) {
-        char ver_topic[128];
-        snprintf(ver_topic, sizeof(ver_topic), "%s/version", MQTT_TOPIC);
-        esp_mqtt_client_publish(mqtt_client, ver_topic, fw_version, 0, 1, 1);
-        vTaskDelay(pdMS_TO_TICKS(500));
-    } else {
-        ESP_LOGW(TAG, "MQTT not connected; version not published");
-    }
+    fw_version_publish(fw_version);
 
-    xTaskCreate(battery_task, "battery_task", 4096, NULL, 5, NULL);
+    battery_status_publish();
 
-    
+    deep_sleep();    
 }
