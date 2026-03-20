@@ -218,5 +218,23 @@ void app_main(void)
 
     wait_until_connected(&mqtt_connected, 30000);
 
+    // publish firmware version and log it
+#ifdef PROJECT_VERSION
+    const char *fw_version = PROJECT_VERSION;
+#else
+    const char *fw_version = "unknown";
+#endif
+    ESP_LOGI(TAG, "Firmware version: %s", fw_version);
+    if (mqtt_connected && mqtt_client) {
+        char ver_topic[128];
+        snprintf(ver_topic, sizeof(ver_topic), "%s/version", MQTT_TOPIC);
+        esp_mqtt_client_publish(mqtt_client, ver_topic, fw_version, 0, 1, 1);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    } else {
+        ESP_LOGW(TAG, "MQTT not connected; version not published");
+    }
+
     xTaskCreate(battery_task, "battery_task", 4096, NULL, 5, NULL);
+
+    
 }
