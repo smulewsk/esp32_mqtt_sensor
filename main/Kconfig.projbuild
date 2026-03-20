@@ -1,0 +1,51 @@
+menu "ESP32 MQTT Sensor configuration"
+
+config WIFI_SSID
+    string "WiFi SSID"
+    default ""
+
+config WIFI_PASSWORD
+    string "WiFi Password"
+    default ""
+
+config MQTT_URI
+    string "MQTT Broker URI"
+    default "mqtt://192.168.1.100"
+
+config MQTT_USERNAME
+    string "MQTT Username"
+    default ""
+
+config MQTT_PASSWORD
+    string "MQTT Password"
+    default ""
+
+config MQTT_TOPIC
+    string "MQTT Publish Topic"
+    default "esp32/battery"
+
+config REPORT_INTERVAL_S
+    int "Reporting interval (seconds)"
+    default 60
+
+config BAT_ADC_CHANNEL
+    int "ADC1 channel (0..7) for battery input (ADC1_CHANNEL_0 = 0)"
+    default 0
+
+config BATTERY_DIVIDER_R1
+    int "Voltage divider R1 (ohms) -- top resistor"
+    default 100000
+
+config BATTERY_DIVIDER_R2
+    int "Voltage divider R2 (ohms) -- bottom resistor"
+    default 100000
+
+config BATTERY_MIN_MV
+    int "Battery voltage (mV) corresponding to 0%"
+    default 3000
+
+config BATTERY_MAX_MV
+    int "Battery voltage (mV) corresponding to 100%"
+    default 4200
+
+endmenu
