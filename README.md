@@ -1,13 +1,13 @@
 # esp32_mqtt_sensor
 
-ESP-IDF project for ESP32-S6 that measures a battery voltage via ADC and reports it to an MQTT broker periodically.
+ESP-IDF project for ESP32-C6 that measures a battery voltage via ADC and reports it to an MQTT broker periodically.
 
 Quick start
 
-1. Set target to esp32s6:
+1. Set target to esp32c6:
 
 ```
-idf.py set-target esp32s6
+idf.py set-target esp32c6
 ```
 
 2. Configure WiFi, MQTT and ADC options:
