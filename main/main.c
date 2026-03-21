@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -121,7 +123,14 @@ static void wifi_init_sta(void)
 static float read_battery_voltage(void)
 {
     int raw = 0;
-    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, (adc_channel_t)BAT_ADC_CHANNEL, &raw));
+    int raw_sum = 0;
+    int total_readings = 10;
+    for (int i = 0; i < total_readings; i++) { // take multiple readings for stability
+        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, (adc_channel_t)BAT_ADC_CHANNEL, &raw));
+        raw_sum += raw;
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    raw = raw_sum / total_readings;
 
     int voltage_mv = 0;
     ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, raw, &voltage_mv));
@@ -139,6 +148,18 @@ static int battery_percent_from_mv(int mv)
     return (int)(((mv - BAT_MIN_MV) * 100) / (BAT_MAX_MV - BAT_MIN_MV));
 }
 
+static void mqtt_publish(const char *topic_suffix, const char *payload, int len)
+{
+    if (mqtt_connected && mqtt_client) {
+        char full_topic[128];
+        snprintf(full_topic, sizeof(full_topic), "%s/%s", MQTT_TOPIC, topic_suffix);
+        int msg_id = esp_mqtt_client_publish(mqtt_client, full_topic, payload, len, 1, 0);
+        ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
+    } else {
+        ESP_LOGW(TAG, "MQTT not connected; cannot publish %s: %s", topic_suffix, payload);
+    }
+}
+
 static void battery_status_publish()
 {
     float batt_v = read_battery_voltage();
@@ -147,26 +168,14 @@ static void battery_status_publish()
 
     char payload[128];
     int len = snprintf(payload, sizeof(payload), "{\"voltage\":%.3f,\"mv\":%d,\"percent\":%d}", batt_v, batt_mv, pct);
-
-    if (mqtt_connected && mqtt_client) {
-        int msg_id = esp_mqtt_client_publish(mqtt_client, MQTT_TOPIC, payload, len, 1, 0);
-        ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
-    } else {
-        ESP_LOGW(TAG, "MQTT not connected, skipping publish: %s", payload);
-    }
+    
+    mqtt_publish("battery", payload, len);
 }
 
 void fw_version_publish(const char *fw_version)
 {
-    if (mqtt_connected && mqtt_client) {
-        char ver_topic[128];
-        snprintf(ver_topic, sizeof(ver_topic), "%s/version", MQTT_TOPIC);
-        esp_mqtt_client_publish(mqtt_client, ver_topic, fw_version, 0, 1, 1);
-    } else {
-        ESP_LOGW(TAG, "MQTT not connected; version not published");
-    }
+    mqtt_publish("version", fw_version, strlen(fw_version));
 }
-
 
 void deep_sleep()
 {
