@@ -7,6 +7,7 @@
 #include "esp_system.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "nvs.h"
 #include "esp_netif.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
@@ -17,7 +18,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 
 
-static const char *TAG = "esp32_mqtt_sensor";
+static const char *TAG = "esp32_mqtt_sensor_8101";
 
 // Kconfig-provided values
 #define WIFI_SSID CONFIG_WIFI_SSID
@@ -27,6 +28,10 @@ static const char *TAG = "esp32_mqtt_sensor";
 #define MQTT_PASS CONFIG_MQTT_PASSWORD
 #define MQTT_TOPIC CONFIG_MQTT_TOPIC
 #define REPORT_INTERVAL_SECONDS CONFIG_REPORT_INTERVAL_S
+#include <stdint.h>
+
+// runtime-configurable report interval (defaults to Kconfig value)
+static volatile int report_interval_seconds = REPORT_INTERVAL_SECONDS;
 #define BAT_ADC_CHANNEL CONFIG_BAT_ADC_CHANNEL
 #define DIV_R1_OHMS CONFIG_BATTERY_DIVIDER_R1
 #define DIV_R2_OHMS CONFIG_BATTERY_DIVIDER_R2
@@ -39,6 +44,69 @@ static esp_mqtt_client_handle_t mqtt_client = NULL;
 static volatile bool mqtt_connected = false;
 static volatile bool wifi_connected = false;
 
+// NVS key for stored report interval
+#define NVS_NAMESPACE "storage"
+#define NVS_KEY_REPORT_INTERVAL "report_interval"
+
+static esp_err_t save_to_nvs(char *key, int value)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_i32(h, key, value);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    return err;
+}
+
+static esp_err_t load_from_nvs(char *key, volatile int *out_value)
+{
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
+    if (err != ESP_OK) return err;
+    int32_t val = 0;
+    err = nvs_get_i32(h, key, &val);
+    if (err == ESP_OK && out_value) *out_value = val;
+    nvs_close(h);
+    return err;
+}
+
+static void mqtt_publish(const char *topic_suffix, const char *payload, int len)
+{
+    if (mqtt_connected && mqtt_client) {
+        char full_topic[128];
+        snprintf(full_topic, sizeof(full_topic), "%s/%s", MQTT_TOPIC, topic_suffix);
+        int msg_id = esp_mqtt_client_publish(mqtt_client, full_topic, payload, len, 1, 0);
+        ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
+    } else {
+        ESP_LOGW(TAG, "MQTT not connected; cannot publish %s: %s", topic_suffix, payload);
+    }
+}
+
+static void update_from_nvs(char *key, int *out_value)
+{
+    // load stored from NVS (if present)
+    if (load_from_nvs(key, out_value) == ESP_OK && *out_value > 0) {
+        ESP_LOGI(TAG, "Loaded %s from NVS: %d seconds", key, *out_value);
+    } else {
+        ESP_LOGI(TAG, "Using default %s: %d seconds", key, *out_value);
+    }
+
+    // subscribe to report_interval topic to receive retained value (if any)
+    char sub_topic[128];
+    snprintf(sub_topic, sizeof(sub_topic), "%s/%s", MQTT_TOPIC, key);
+    int msg_id = esp_mqtt_client_subscribe(mqtt_client, sub_topic, 1);
+    ESP_LOGI(TAG, "Subscribed to %s, msg_id=%d", sub_topic, msg_id);
+
+    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
+
+    // publish current interval so broker/clients know our value
+    char payload[32];
+    int len = snprintf(payload, sizeof(payload), "%d", report_interval_seconds);
+    mqtt_publish("report_interval", payload, len);
+}
+
+
 static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
 {
     int waited_ms = 0;
@@ -47,6 +115,8 @@ static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
         waited_ms += 500;
     }
 }
+
+
 
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
 
@@ -60,6 +130,41 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
         mqtt_connected = false;
         break;
+    case MQTT_EVENT_DATA: {
+        esp_mqtt_event_handle_t event = event_data;
+        // copy topic
+        char topic[128];
+        int tlen = event->topic_len < (int)sizeof(topic) - 1 ? event->topic_len : (int)sizeof(topic) - 1;
+        memcpy(topic, event->topic, tlen);
+        topic[tlen] = '\0';
+
+        char expected[128];
+        snprintf(expected, sizeof(expected), "%s/report_interval", MQTT_TOPIC);
+        if (strcmp(topic, expected) == 0) {
+            // copy payload
+            char payload[64];
+            int plen = event->data_len < (int)sizeof(payload) - 1 ? event->data_len : (int)sizeof(payload) - 1;
+            memcpy(payload, event->data, plen);
+            payload[plen] = '\0';
+            ESP_LOGI(TAG, "Received report_interval payload: %s", payload);
+            int val = atoi(payload);
+            if (val > 0) {
+                if(report_interval_seconds != val) {
+                    report_interval_seconds = val;
+                    esp_err_t r = save_to_nvs("report_interval", val);
+                    if (r == ESP_OK) {
+                        ESP_LOGI(TAG, "Saved report interval %d to NVS", val);
+                    } else {
+                        ESP_LOGW(TAG, "Failed to save report interval to NVS: %d", r);
+                    }
+                }
+
+            } else {
+                ESP_LOGW(TAG, "Invalid report interval received: %s", payload);
+            }
+        }
+        break;
+    }
     default:
         break;
     }
@@ -71,6 +176,7 @@ static void mqtt_app_start(void)
         .broker.address.uri = MQTT_URI,
         .credentials.username = MQTT_USER,
         .credentials.authentication.password = MQTT_PASS,
+        .session.disable_clean_session = true, // to receive retained messages on subscribe
     };
 
     mqtt_client = esp_mqtt_client_init(&cfg);
@@ -148,18 +254,6 @@ static int battery_percent_from_mv(int mv)
     return (int)(((mv - BAT_MIN_MV) * 100) / (BAT_MAX_MV - BAT_MIN_MV));
 }
 
-static void mqtt_publish(const char *topic_suffix, const char *payload, int len)
-{
-    if (mqtt_connected && mqtt_client) {
-        char full_topic[128];
-        snprintf(full_topic, sizeof(full_topic), "%s/%s", MQTT_TOPIC, topic_suffix);
-        int msg_id = esp_mqtt_client_publish(mqtt_client, full_topic, payload, len, 1, 0);
-        ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
-    } else {
-        ESP_LOGW(TAG, "MQTT not connected; cannot publish %s: %s", topic_suffix, payload);
-    }
-}
-
 static void battery_status_publish()
 {
     float batt_v = read_battery_voltage();
@@ -172,12 +266,12 @@ static void battery_status_publish()
     mqtt_publish("battery", payload, len);
 }
 
-void fw_version_publish(const char *fw_version)
+static void fw_version_publish(const char *fw_version)
 {
     mqtt_publish("version", fw_version, strlen(fw_version));
 }
 
-void deep_sleep()
+static void deep_sleep()
 {
     // cleanup MQTT and WiFi before deep sleep
     if (mqtt_client) {
@@ -187,22 +281,19 @@ void deep_sleep()
     }
     esp_wifi_stop();
 
-    ESP_LOGI(TAG, "Entering deep sleep for %d seconds", REPORT_INTERVAL_SECONDS);
-    esp_deep_sleep_try((uint64_t)REPORT_INTERVAL_SECONDS * 1000000ULL);
+    ESP_LOGI(TAG, "Entering deep sleep for %d seconds", report_interval_seconds);
+    esp_deep_sleep_try((uint64_t)report_interval_seconds * 1000000ULL);
     esp_deep_sleep_start();
 }
 
-void app_main(void)
-{
-    ESP_LOGI(TAG, "Starting esp32_mqtt_sensor");
-    // publish firmware version and log it
-#ifdef PROJECT_VERSION
-    const char *fw_version = PROJECT_VERSION;
-#else
-    const char *fw_version = "unknown";
-#endif
-    ESP_LOGI(TAG, "Firmware version: %s", fw_version);
 
+static void config()
+{
+    update_from_nvs("report_interval", (int *)&report_interval_seconds);
+}
+
+static void init()
+{
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -210,6 +301,17 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(ret);
 
+    wifi_init_sta();
+
+    wait_until_connected(&wifi_connected, 30000);
+
+    mqtt_app_start();
+
+    wait_until_connected(&mqtt_connected, 30000);
+}
+
+static void battery_measure()
+{
     // ADC init
     adc_oneshot_unit_init_cfg_t adc1_init_cfg = {
         .unit_id = ADC_UNIT_1,
@@ -228,14 +330,24 @@ void app_main(void)
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
     ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_cfg, &adc1_cali_handle));
+}
 
-    wifi_init_sta();
+void app_main(void)
+{
+    ESP_LOGI(TAG, "Starting esp32_mqtt_sensor");
+    // publish firmware version and log it
+#ifdef PROJECT_VERSION
+    const char *fw_version = PROJECT_VERSION;
+#else
+    const char *fw_version = "unknown";
+#endif
+    ESP_LOGI(TAG, "Firmware version: %s", fw_version);
 
-    wait_until_connected(&wifi_connected, 30000);
+    init();
 
-    mqtt_app_start();
+    config();
 
-    wait_until_connected(&mqtt_connected, 30000);
+    battery_measure();
 
     fw_version_publish(fw_version);
 
