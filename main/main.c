@@ -12,6 +12,7 @@
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_sleep.h"
+#include "esp_attr.h"
 #include "mqtt_client.h"
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
@@ -43,6 +44,32 @@ static adc_cali_handle_t adc1_cali_handle = NULL;
 static esp_mqtt_client_handle_t mqtt_client = NULL;
 static volatile bool mqtt_connected = false;
 static volatile bool wifi_connected = false;
+
+// RTC-stored battery readings (preserved across deep sleep)
+#define RTC_BATT_SAMPLES 10
+RTC_DATA_ATTR static int rtc_batt_values[RTC_BATT_SAMPLES] = {0};
+RTC_DATA_ATTR static int rtc_batt_index = 0;
+RTC_DATA_ATTR static int rtc_batt_count = 0; // how many values are populated (<= RTC_BATT_SAMPLES)
+
+static void rtc_batt_add_sample(int mv)
+{
+    rtc_batt_values[rtc_batt_index] = mv;
+    rtc_batt_index = (rtc_batt_index + 1) % RTC_BATT_SAMPLES;
+    if (rtc_batt_count < RTC_BATT_SAMPLES) rtc_batt_count++;
+}
+
+static int rtc_batt_avg_mv(void)
+{
+    int count = 0;
+    long sum = 0;
+    for (int i = 0; i < RTC_BATT_SAMPLES; i++) {
+        if(rtc_batt_values[i] > 0) {
+            sum += rtc_batt_values[i];
+            count++;
+        }
+    }
+    return (int)(sum / count);
+}
 
 // NVS key for stored report interval
 #define NVS_NAMESPACE "storage"
@@ -229,17 +256,16 @@ static void wifi_init_sta(void)
 static float read_battery_voltage(void)
 {
     int raw = 0;
-    int raw_sum = 0;
-    int total_readings = 10;
-    for (int i = 0; i < total_readings; i++) { // take multiple readings for stability
-        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, (adc_channel_t)BAT_ADC_CHANNEL, &raw));
-        raw_sum += raw;
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-    raw = raw_sum / total_readings;
+    int raw_avg = 0;
+
+    ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, (adc_channel_t)BAT_ADC_CHANNEL, &raw));
+
+    rtc_batt_add_sample(raw);
+
+    raw_avg = rtc_batt_avg_mv(); // update RTC-stored average (for use across deep sleep)
 
     int voltage_mv = 0;
-    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, raw, &voltage_mv));
+    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_handle, raw_avg, &voltage_mv));
 
     float divider_factor = ((float)DIV_R1_OHMS + (float)DIV_R2_OHMS) / (float)DIV_R2_OHMS;
     float battery_mv = (float)voltage_mv * divider_factor;
