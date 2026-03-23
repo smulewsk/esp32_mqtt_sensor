@@ -19,7 +19,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 
 
-static const char *TAG = "esp32_mqtt_sensor_8101";
+static const char *TAG = "esp32_mqtt_sensor";
 
 // Kconfig-provided values
 #define WIFI_SSID CONFIG_WIFI_SSID
@@ -49,13 +49,11 @@ static volatile bool wifi_connected = false;
 #define RTC_BATT_SAMPLES 10
 RTC_DATA_ATTR static int rtc_batt_values[RTC_BATT_SAMPLES] = {0};
 RTC_DATA_ATTR static int rtc_batt_index = 0;
-RTC_DATA_ATTR static int rtc_batt_count = 0; // how many values are populated (<= RTC_BATT_SAMPLES)
 
 static void rtc_batt_add_sample(int mv)
 {
     rtc_batt_values[rtc_batt_index] = mv;
     rtc_batt_index = (rtc_batt_index + 1) % RTC_BATT_SAMPLES;
-    if (rtc_batt_count < RTC_BATT_SAMPLES) rtc_batt_count++;
 }
 
 static int rtc_batt_avg_mv(void)
@@ -110,29 +108,46 @@ static void mqtt_publish(const char *topic_suffix, const char *payload, int len)
     }
 }
 
-static void update_from_nvs(char *key, int *out_value)
+static void mqtt_subscribe(const char *topic_suffix)
+{
+    if (mqtt_connected && mqtt_client) {
+        char full_topic[128];
+        snprintf(full_topic, sizeof(full_topic), "%s/%s", MQTT_TOPIC, topic_suffix);
+        int msg_id = esp_mqtt_client_subscribe(mqtt_client, full_topic, 1);
+        ESP_LOGI(TAG, "Subscribed to %s, msg_id=%d", full_topic, msg_id);
+    } else {
+        ESP_LOGW(TAG, "MQTT not connected; cannot subscribe to %s", topic_suffix);
+    }
+}
+
+static void mqtt_publish_config(char *key, int value)
+{
+    char payload[32];
+    char pub_topic[128];
+    int len = snprintf(payload, sizeof(payload), "%d", value);
+    snprintf(pub_topic, sizeof(pub_topic), "config/%s/state", key);
+    mqtt_publish(pub_topic, payload, len);
+}
+
+static void mqtt_subscribe_config(char *key)
+{
+    // subscribe to key topic to receive retained value (if any)
+    char sub_topic[128];
+    snprintf(sub_topic, sizeof(sub_topic), "config/%s/set", key);
+    mqtt_subscribe(sub_topic);
+}
+
+
+static void update_from_nvs(char *key, int *out_value, int default_value)
 {
     // load stored from NVS (if present)
     if (load_from_nvs(key, out_value) == ESP_OK && *out_value > 0) {
         ESP_LOGI(TAG, "Loaded %s from NVS: %d seconds", key, *out_value);
     } else {
-        ESP_LOGI(TAG, "Using default %s: %d seconds", key, *out_value);
+        ESP_LOGI(TAG, "Using default %s: %d seconds", key, default_value);
+        *out_value = default_value;
     }
-
-    // subscribe to report_interval topic to receive retained value (if any)
-    char sub_topic[128];
-    snprintf(sub_topic, sizeof(sub_topic), "%s/%s", MQTT_TOPIC, key);
-    int msg_id = esp_mqtt_client_subscribe(mqtt_client, sub_topic, 1);
-    ESP_LOGI(TAG, "Subscribed to %s, msg_id=%d", sub_topic, msg_id);
-
-    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
-
-    // publish current interval so broker/clients know our value
-    char payload[32];
-    int len = snprintf(payload, sizeof(payload), "%d", report_interval_seconds);
-    mqtt_publish("report_interval", payload, len);
 }
-
 
 static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
 {
@@ -143,10 +158,7 @@ static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
     }
 }
 
-
-
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
-
 {
     switch (event_id) {
     case MQTT_EVENT_CONNECTED:
@@ -166,7 +178,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         topic[tlen] = '\0';
 
         char expected[128];
-        snprintf(expected, sizeof(expected), "%s/report_interval", MQTT_TOPIC);
+        snprintf(expected, sizeof(expected), "%s/config/report_interval/set", MQTT_TOPIC);
         if (strcmp(topic, expected) == 0) {
             // copy payload
             char payload[64];
@@ -315,7 +327,15 @@ static void deep_sleep()
 
 static void config()
 {
-    update_from_nvs("report_interval", (int *)&report_interval_seconds);
+    update_from_nvs("report_interval", (int *)&report_interval_seconds, REPORT_INTERVAL_SECONDS);
+    mqtt_subscribe_config("report_interval");
+
+    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
+}
+
+static void config_publish()
+{
+    mqtt_publish_config("report_interval", report_interval_seconds);
 }
 
 static void init()
@@ -375,9 +395,13 @@ void app_main(void)
 
     battery_measure();
 
+    battery_status_publish();
+
     fw_version_publish(fw_version);
 
-    battery_status_publish();
+    config_publish();
+
+    vTaskDelay(pdMS_TO_TICKS(500)); // wait a bit to ensure messages are sent before deep sleep
 
     deep_sleep();    
 }
