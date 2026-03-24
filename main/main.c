@@ -1,75 +1,30 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+
 #include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-#include "nvs.h"
+
 #include "esp_netif.h"
-#include "esp_event.h"
+
 #include "esp_wifi.h"
 #include "esp_sleep.h"
 #include "esp_attr.h"
-#include "esp_mac.h"
-#include "mqtt_client.h"
+
+
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 
-
-static const char *TAG = "esp32_mqtt_sensor";
-
-// Kconfig-provided values
-#define WIFI_SSID CONFIG_WIFI_SSID
-#define WIFI_PASS CONFIG_WIFI_PASSWORD
-#define MQTT_URI CONFIG_MQTT_URI
-#define MQTT_USER CONFIG_MQTT_USERNAME
-#define MQTT_PASS CONFIG_MQTT_PASSWORD
-#define MQTT_TOPIC CONFIG_MQTT_TOPIC
-#define REPORT_INTERVAL_SECONDS CONFIG_REPORT_INTERVAL_S
-#include <stdint.h>
-
-#define BAT_ADC_CHANNEL CONFIG_BAT_ADC_CHANNEL
-#define DIV_R1_OHMS CONFIG_BATTERY_DIVIDER_R1
-#define DIV_R2_OHMS CONFIG_BATTERY_DIVIDER_R2
-#define BAT_MIN_MV CONFIG_BATTERY_MIN_MV
-#define BAT_MAX_MV CONFIG_BATTERY_MAX_MV
-
-
-// runtime-configurable variables (defaults to Kconfig value)
-static volatile int report_interval_seconds = REPORT_INTERVAL_SECONDS;
-static volatile int battery_min_mv = BAT_MIN_MV;
-static volatile int battery_max_mv = BAT_MAX_MV;
+#include "common.h"
 
 // variables for WiFi/MQTT state and callbacks
 static adc_oneshot_unit_handle_t adc1_handle = NULL;
 static adc_cali_handle_t adc1_cali_handle = NULL;
-static esp_mqtt_client_handle_t mqtt_client = NULL;
-static volatile bool mqtt_connected = false;
+
+
 static volatile bool wifi_connected = false;
 
-// base topic that includes device unique id (MAC-based)
-static char base_mqtt_topic[128] = {0};
 
-static void create_base_mqtt_topic(void)
-{
-    uint8_t mac[6];
-    if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
-        char id[13];
-        snprintf(id, sizeof(id), "%02X%02X%02X%02X%02X%02X",
-                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        snprintf(base_mqtt_topic, sizeof(base_mqtt_topic), "%s-%s", MQTT_TOPIC, id);
-        ESP_LOGI(TAG, "Base MQTT topic set to: %s", base_mqtt_topic);
-    } else {
-        // fallback to MQTT_TOPIC if MAC read fails
-        strncpy(base_mqtt_topic, MQTT_TOPIC, sizeof(base_mqtt_topic) - 1);
-        base_mqtt_topic[sizeof(base_mqtt_topic) - 1] = '\0';
-        ESP_LOGW(TAG, "Failed to read MAC; using MQTT_TOPIC: %s", base_mqtt_topic);
-    }
-}
 
 // RTC-stored battery readings (preserved across deep sleep)
 #define RTC_BATT_SAMPLES 10
@@ -95,87 +50,6 @@ static int rtc_batt_avg_mv(void)
     return (int)(sum / count);
 }
 
-// NVS key for stored report interval
-#define NVS_NAMESPACE "storage"
-#define NVS_KEY_REPORT_INTERVAL "report_interval"
-
-static esp_err_t save_to_nvs(const char *key, int value)
-{
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
-    if (err != ESP_OK) return err;
-    err = nvs_set_i32(h, key, value);
-    if (err == ESP_OK) err = nvs_commit(h);
-    nvs_close(h);
-    return err;
-}
-
-static esp_err_t load_from_nvs(const char *key, volatile int *out_value)
-{
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
-    if (err != ESP_OK) return err;
-    int32_t val = 0;
-    err = nvs_get_i32(h, key, &val);
-    if (err == ESP_OK && out_value) *out_value = val;
-    nvs_close(h);
-    return err;
-}
-
-static void mqtt_publish(const char *topic_suffix, const char *payload, int len)
-{
-    if (mqtt_connected && mqtt_client) {
-        char full_topic[256];
-        snprintf(full_topic, sizeof(full_topic), "%s/%s", base_mqtt_topic, topic_suffix);
-        int msg_id = esp_mqtt_client_publish(mqtt_client, full_topic, payload, len, 1, 0);
-        ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
-    } else {
-        ESP_LOGW(TAG, "MQTT not connected; cannot publish %s: %s", topic_suffix, payload);
-    }
-}
-
-static void mqtt_subscribe(const char *topic_suffix)
-{
-    if (mqtt_connected && mqtt_client) {
-        char full_topic[256];
-        snprintf(full_topic, sizeof(full_topic), "%s/%s", base_mqtt_topic, topic_suffix);
-        int msg_id = esp_mqtt_client_subscribe(mqtt_client, full_topic, 1);
-        ESP_LOGI(TAG, "Subscribed to %s, msg_id=%d", full_topic, msg_id);
-    } else {
-        ESP_LOGW(TAG, "MQTT not connected; cannot subscribe to %s", topic_suffix);
-    }
-}
-
-static void mqtt_publish_config(const char *key, int value)
-{
-    char payload[32];
-    char pub_topic[128];
-    int len = snprintf(payload, sizeof(payload), "%d", value);
-    snprintf(pub_topic, sizeof(pub_topic), "config/%s/state", key);
-    mqtt_publish(pub_topic, payload, len);
-}
-
-static void mqtt_subscribe_config(const char *key)
-{
-    // subscribe to key topic to receive retained value (if any)
-    char sub_topic[128];
-    snprintf(sub_topic, sizeof(sub_topic), "config/%s/set", key);
-    mqtt_subscribe(sub_topic);
-}
-
-
-static void update_from_nvs(const char *key, int *out_value, int default_value)
-{
-    // load stored from NVS (if present)
-    if (load_from_nvs(key, out_value) == ESP_OK && *out_value > 0) {
-        ESP_LOGI(TAG, "Loaded %s from NVS: %d", key, *out_value);
-    } else {
-        ESP_LOGI(TAG, "Using default %s: %d", key, default_value);
-        save_to_nvs(key, default_value);
-        *out_value = default_value;
-    }
-}
-
 static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
 {
     int waited_ms = 0;
@@ -185,82 +59,6 @@ static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
     }
 }
 
-static void mqtt_check_subscription(esp_mqtt_event_handle_t event, const char *name, int *value)
-{
-    // copy topic
-    char topic[128];
-    int tlen = event->topic_len < (int)sizeof(topic) - 1 ? event->topic_len : (int)sizeof(topic) - 1;
-    memcpy(topic, event->topic, tlen);
-    topic[tlen] = '\0';
-
-    char expected[256];
-    snprintf(expected, sizeof(expected), "%s/config/%s/set", base_mqtt_topic, name);
-    if (strcmp(topic, expected) == 0) {
-        // copy payload
-        char payload[64];
-        int plen = event->data_len < (int)sizeof(payload) - 1 ? event->data_len : (int)sizeof(payload) - 1;
-        memcpy(payload, event->data, plen);
-        payload[plen] = '\0';
-        ESP_LOGI(TAG, "Received %s payload: %s", name, payload);
-        int received_value = atoi(payload);
-        if (received_value > 0) {
-            if(*value != received_value) {
-                *value = received_value;
-                esp_err_t r = save_to_nvs(name, received_value);
-                if (r == ESP_OK) {
-                    ESP_LOGI(TAG, "Saved %s %d to NVS", name, received_value);
-                } else {
-                    ESP_LOGW(TAG, "Failed to save %s to NVS: %d", name, r);
-                }
-            }
-
-        } else {
-            ESP_LOGW(TAG, "Invalid %s received: %s", name, payload);
-        }
-    }
-}
-
-static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data)
-{
-    switch (event_id) {
-    case MQTT_EVENT_CONNECTED:
-        ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
-        mqtt_connected = true;
-        break;
-    case MQTT_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
-        mqtt_connected = false;
-        break;
-    case MQTT_EVENT_DATA: {
-        esp_mqtt_event_handle_t event = event_data;
-        mqtt_check_subscription(event, "report_interval", (int *)&report_interval_seconds);
-        mqtt_check_subscription(event, "battery_min_mv", (int *)&battery_min_mv);
-        mqtt_check_subscription(event, "battery_max_mv", (int *)&battery_max_mv);
-
-        break;
-    }
-    default:
-        break;
-    }
-}
-
-static void mqtt_app_start(void)
-{
-    esp_mqtt_client_config_t cfg = {
-        .broker.address.uri = MQTT_URI,
-        .credentials.username = MQTT_USER,
-        .credentials.authentication.password = MQTT_PASS,
-        .session.disable_clean_session = true, // to receive retained messages on subscribe
-    };
-
-    mqtt_client = esp_mqtt_client_init(&cfg);
-    if (!mqtt_client) {
-        ESP_LOGE(TAG, "Failed to init MQTT client");
-        return;
-    }
-    esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, mqtt_client);
-    esp_mqtt_client_start(mqtt_client);
-}
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
@@ -322,6 +120,10 @@ static float read_battery_voltage(void)
 
 static int battery_percent_from_mv(int mv)
 {
+    config_t *cfg = get_config_ptr();
+    int battery_min_mv = cfg->battery_min_mv;
+    int battery_max_mv = cfg->battery_max_mv;
+
     if (mv <= battery_min_mv) return 0;
     if (mv >= battery_max_mv) return 100;
     return (int)(((mv - battery_min_mv) * 100) / (battery_max_mv - battery_min_mv));
@@ -346,12 +148,11 @@ static void fw_version_publish(const char *fw_version)
 
 static void deep_sleep()
 {
-    // cleanup MQTT and WiFi before deep sleep
-    if (mqtt_client) {
-        esp_mqtt_client_stop(mqtt_client);
-        esp_mqtt_client_destroy(mqtt_client);
-        mqtt_client = NULL;
-    }
+    config_t *cfg = get_config_ptr();
+    int report_interval_seconds = cfg->report_interval_seconds;
+    
+    mqtt_cleanup();
+
     esp_wifi_stop();
 
     ESP_LOGI(TAG, "Entering deep sleep for %d seconds", report_interval_seconds);
@@ -359,45 +160,15 @@ static void deep_sleep()
     esp_deep_sleep_start();
 }
 
-
-static void config()
-{
-    update_from_nvs("report_interval", (int *)&report_interval_seconds, REPORT_INTERVAL_SECONDS);
-    mqtt_subscribe_config("report_interval");
-    update_from_nvs("battery_min_mv", (int *)&battery_min_mv, BAT_MIN_MV);
-    mqtt_subscribe_config("battery_min_mv");
-    update_from_nvs("battery_max_mv", (int *)&battery_max_mv, BAT_MAX_MV);
-    mqtt_subscribe_config("battery_max_mv");
-
-    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
-}
-
-static void config_publish()
-{
-    mqtt_publish_config("report_interval", report_interval_seconds);
-    mqtt_publish_config("battery_min_mv", battery_min_mv);
-    mqtt_publish_config("battery_max_mv", battery_max_mv);
-}
-
 static void init()
 {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    ESP_ERROR_CHECK(ret);
-
     wifi_init_sta();
 
     wait_until_connected(&wifi_connected, 30000);
 
-    // create MQTT base topic that includes device unique id
-    create_base_mqtt_topic();
-
     mqtt_app_start();
 
-    wait_until_connected(&mqtt_connected, 30000);
+    wait_until_connected(get_mqtt_connected_ptr(), 30000);
 }
 
 static void battery_measure()
@@ -433,10 +204,12 @@ void app_main(void)
 #endif
     ESP_LOGI(TAG, "Firmware version: %s", fw_version);
 
+    config_init();
+
     init();
 
-    config();
-
+    config_subscribe();
+    
     battery_measure();
 
     battery_status_publish();
