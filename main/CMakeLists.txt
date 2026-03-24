@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "mqtt.c" "main.c" "config.c"             
+    SRCS "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "adc.c"           
     INCLUDE_DIRS "."
     REQUIRES 
         esp_adc

@@ -22,6 +22,12 @@
 
 #define TAG "esp32_mqtt_sensor"
 
+
+// ADC and battery measurement
+void battery_measure();
+float battery_voltage_read(void);
+int battery_percent_from_mv(int mv);
+
 // Config
 typedef struct config_t {
     int report_interval_seconds;
@@ -43,3 +49,8 @@ void mqtt_subscribe(const char *subtopic);
 void mqtt_publish_config(const char *key, int value);
 void mqtt_subscribe_config(const char *key);
 volatile bool* get_mqtt_connected_ptr();
+
+// WiFi
+void wifi_init_sta();
+void wifi_cleanup();
+volatile bool* get_wifi_connected_ptr();

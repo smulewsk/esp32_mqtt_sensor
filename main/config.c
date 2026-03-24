@@ -90,13 +90,14 @@ void config_update_value_in_nvs(const char *name, int value)
         r = save_to_nvs("battery_max_mv", value);
         if (r == ESP_OK) config_params.battery_max_mv = value;
     } else {
-        ESP_LOGW(TAG, "Unknown config key: %s", name);
+        ESP_LOGW(TAG, "Unknown config key or value not changed: %s", name);
+        return;
     }
 
     if (r == ESP_OK) {
         ESP_LOGI(TAG, "Saved %s %d to NVS", name, value);
     } else {
-        ESP_LOGW(TAG, "Failed to save %s to NVS: %d", name, r);
+        ESP_LOGE(TAG, "Failed to save %s to NVS: %s", name, esp_err_to_name(r));
     }
 }
 
