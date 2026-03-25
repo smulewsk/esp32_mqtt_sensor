@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "adc.c"           
+    SRCS "vl53l0x.c" "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "adc.c"           
     INCLUDE_DIRS "."
     REQUIRES 
         esp_adc
@@ -9,6 +9,7 @@ idf_component_register(
         nvs_flash
         mqtt
         esp_pm
+        driver
 )
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/VERSION")

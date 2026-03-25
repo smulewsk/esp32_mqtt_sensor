@@ -6,6 +6,7 @@
 #include "esp_attr.h"
 
 #include "common.h"
+#include "vl53l0x.h"
 
 
 static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
@@ -81,6 +82,17 @@ void app_main(void)
     battery_measure();
 
     battery_status_publish();
+
+    // VL53L0X sensor init and publish
+    if (vl53l0x_init()) {
+        int dist = vl53l0x_read_range_mm();
+        char payload[64];
+        int len = snprintf(payload, sizeof(payload), "%d", dist);
+        mqtt_publish("distance", payload, len);
+    } else {
+        char payload[] = "-1";
+        mqtt_publish("distance", payload, sizeof(payload) - 1);
+    }
 
     fw_version_publish(fw_version);
 
