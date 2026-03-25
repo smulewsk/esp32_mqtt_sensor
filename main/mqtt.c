@@ -15,17 +15,18 @@ static char base_mqtt_topic[128] = {0};
 static void create_base_mqtt_topic(void)
 {
     uint8_t mac[6];
+    const char *topic_base = get_config_ptr()->mqtt_topic;
     if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
         char id[13];
         snprintf(id, sizeof(id), "%02X%02X%02X%02X%02X%02X",
                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-        snprintf(base_mqtt_topic, sizeof(base_mqtt_topic), "%s-%s", MQTT_TOPIC, id);
+        snprintf(base_mqtt_topic, sizeof(base_mqtt_topic), "%s-%s", topic_base, id);
         ESP_LOGI(TAG, "Base MQTT topic set to: %s", base_mqtt_topic);
     } else {
-        // fallback to MQTT_TOPIC if MAC read fails
-        strncpy(base_mqtt_topic, MQTT_TOPIC, sizeof(base_mqtt_topic) - 1);
+        // fallback to topic_base if MAC read fails
+        strncpy(base_mqtt_topic, topic_base, sizeof(base_mqtt_topic) - 1);
         base_mqtt_topic[sizeof(base_mqtt_topic) - 1] = '\0';
-        ESP_LOGW(TAG, "Failed to read MAC; using MQTT_TOPIC: %s", base_mqtt_topic);
+        ESP_LOGW(TAG, "Failed to read MAC; using MQTT topic: %s", base_mqtt_topic);
     }
 }
 
@@ -74,10 +75,12 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
 
 void mqtt_app_start(void)
 {
+    config_t *net_cfg = get_config_ptr();
+
     esp_mqtt_client_config_t cfg = {
-        .broker.address.uri = MQTT_URI,
-        .credentials.username = MQTT_USER,
-        .credentials.authentication.password = MQTT_PASS,
+        .broker.address.uri = net_cfg->mqtt_uri,
+        .credentials.username = net_cfg->mqtt_user,
+        .credentials.authentication.password = net_cfg->mqtt_pass,
         .session.disable_clean_session = true, // to receive retained messages on subscribe
     };
 

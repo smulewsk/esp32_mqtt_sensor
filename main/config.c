@@ -34,6 +34,23 @@ esp_err_t load_from_nvs(const char *key, volatile int *out_value)
     return err;
 }
 
+static void load_str_with_default(const char *key, char *out, size_t out_len, const char *def)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
+        size_t len = out_len;
+        if (nvs_get_str(h, key, out, &len) == ESP_OK && out[0] != '\0') {
+            ESP_LOGI(TAG, "Loaded %s from NVS", key);
+            nvs_close(h);
+            return;
+        }
+        nvs_close(h);
+    }
+    strncpy(out, def, out_len - 1);
+    out[out_len - 1] = '\0';
+    ESP_LOGI(TAG, "Using default for %s", key);
+}
+
 static void update_from_nvs(const char *key, int *out_value, int default_value)
 {
     // load stored from NVS (if present)
@@ -55,6 +72,14 @@ void config_init()
     }
 
     ESP_ERROR_CHECK(ret);
+
+    // Load network credentials from NVS — fall back to Kconfig compile-time defaults
+    load_str_with_default("wifi_ssid",   config_params.wifi_ssid,   sizeof(config_params.wifi_ssid),   WIFI_SSID);
+    load_str_with_default("wifi_pass",   config_params.wifi_pass,   sizeof(config_params.wifi_pass),   WIFI_PASS);
+    load_str_with_default("mqtt_uri",    config_params.mqtt_uri,    sizeof(config_params.mqtt_uri),    MQTT_URI);
+    load_str_with_default("mqtt_user",   config_params.mqtt_user,   sizeof(config_params.mqtt_user),   MQTT_USER);
+    load_str_with_default("mqtt_pass",   config_params.mqtt_pass,   sizeof(config_params.mqtt_pass),   MQTT_PASS);
+    load_str_with_default("mqtt_topic",  config_params.mqtt_topic,  sizeof(config_params.mqtt_topic),  MQTT_TOPIC);
 }
 
 void config_subscribe()

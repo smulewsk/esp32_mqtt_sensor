@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,6 +35,12 @@ typedef struct config_t {
     int report_interval_seconds;
     int battery_min_mv;
     int battery_max_mv;
+    char wifi_ssid[64];
+    char wifi_pass[64];
+    char mqtt_uri[128];
+    char mqtt_user[64];
+    char mqtt_pass[64];
+    char mqtt_topic[64];
 } config_t;
 
 void config_init();
@@ -51,6 +59,10 @@ void mqtt_subscribe_config(const char *key);
 volatile bool* get_mqtt_connected_ptr();
 
 // WiFi
+void wifi_platform_init();
 void wifi_init_sta();
 void wifi_cleanup();
 volatile bool* get_wifi_connected_ptr();
+
+// AP config portal
+void ap_config_start(void);
