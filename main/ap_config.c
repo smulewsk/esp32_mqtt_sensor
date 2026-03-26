@@ -17,6 +17,8 @@
 #define AP_MAX_STA   4
 #define NVS_NAMESPACE "storage"
 
+#define AP_MODE_TIMEOUT_MS 300000 // 5 minutes
+
 // HTML config page — uses snprintf with %s placeholders for current values.
 // Note: %% is used wherever the HTML/CSS needs a literal % character.
 static const char *HTML_PAGE =
@@ -238,7 +240,13 @@ void ap_config_start(void)
 
     // Block here; HTTP server tasks run independently.
     // The save_handler will call esp_restart() after saving.
-    while (1) {
+    // To avoid staying in AP mode indefinitely if the user doesn't save, we can optionally add a timeout here.
+    int elapsed_ms = 0;
+    while (elapsed_ms < AP_MODE_TIMEOUT_MS) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        elapsed_ms += 1000;
     }
+
+    ESP_LOGI(TAG, "AP mode timeout reached — restarting device");
+    esp_restart();
 }
