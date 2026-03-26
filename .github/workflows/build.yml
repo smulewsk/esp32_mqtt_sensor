@@ -52,11 +52,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           version=$(cat VERSION)
-          git tag "v${version}"
+          git fetch --tags
+          git tag -a "v${version}" -m "CI build v${version}"
+          git push origin refs/tags/v${version}
           IFS='.' read -r major minor patch <<< "$version"
           patch=$((patch+1))
           new="${major}.${minor}.${patch}"
           echo "$new" > VERSION
           git add VERSION
           git commit -m "ci: bump version to v${new}" || echo "No changes to commit"
-          git push origin HEAD --follow-tags
+          git push origin HEAD
