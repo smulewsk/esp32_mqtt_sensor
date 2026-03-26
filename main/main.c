@@ -133,6 +133,13 @@ void app_main(void)
         }
     }
 
+    // If WiFi SSID or MQTT URI are not set, start AP config portal immediately
+    config_t *cfg = get_config_ptr();
+    if (cfg->wifi_ssid[0] == '\0' || cfg->mqtt_uri[0] == '\0') {
+        ESP_LOGW(TAG, "WiFi SSID or MQTT URI not set; starting AP config portal");
+        ap_config_start(); // serves config portal; restarts device on save
+    }
+
     init();
 
     config_subscribe();
