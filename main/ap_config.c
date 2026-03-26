@@ -112,17 +112,6 @@ static bool extract_field(const char *body, const char *field, char *out, size_t
     return true;
 }
 
-static esp_err_t save_str_nvs(const char *key, const char *value)
-{
-    nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
-    if (err != ESP_OK) return err;
-    err = nvs_set_str(h, key, value);
-    if (err == ESP_OK) err = nvs_commit(h);
-    nvs_close(h);
-    return err;
-}
-
 // GET / — serve the config form pre-filled with current values
 static esp_err_t get_handler(httpd_req_t *req)
 {
@@ -180,12 +169,12 @@ static esp_err_t save_handler(httpd_req_t *req)
     extract_field(body, "mqtt_pass",  cfg->mqtt_pass,  sizeof(cfg->mqtt_pass));
     extract_field(body, "mqtt_topic", cfg->mqtt_topic, sizeof(cfg->mqtt_topic));
 
-    save_str_nvs("wifi_ssid",   cfg->wifi_ssid);
-    save_str_nvs("wifi_pass",   cfg->wifi_pass);
-    save_str_nvs("mqtt_uri",    cfg->mqtt_uri);
-    save_str_nvs("mqtt_user",   cfg->mqtt_user);
-    save_str_nvs("mqtt_pass",   cfg->mqtt_pass);
-    save_str_nvs("mqtt_topic",  cfg->mqtt_topic);
+    save_str_to_nvs("wifi_ssid",   cfg->wifi_ssid);
+    save_str_to_nvs("wifi_pass",   cfg->wifi_pass);
+    save_str_to_nvs("mqtt_uri",    cfg->mqtt_uri);
+    save_str_to_nvs("mqtt_user",   cfg->mqtt_user);
+    save_str_to_nvs("mqtt_pass",   cfg->mqtt_pass);
+    save_str_to_nvs("mqtt_topic",  cfg->mqtt_topic);
 
     ESP_LOGI(TAG, "Config saved — restarting");
 

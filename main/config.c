@@ -1,5 +1,3 @@
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "nvs_flash.h"
 #include "nvs.h"
 
@@ -11,7 +9,7 @@
 
 config_t config_params = {0};
 
-esp_err_t save_to_nvs(const char *key, int value)
+esp_err_t save_int_to_nvs(const char *key, int value)
 {
     nvs_handle_t h;
     esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
@@ -22,19 +20,25 @@ esp_err_t save_to_nvs(const char *key, int value)
     return err;
 }
 
-esp_err_t load_from_nvs(const char *key, volatile int *out_value)
+esp_err_t load_int_from_nvs(const char *key, volatile int *out_value, int default_value)
 {
+    esp_err_t err = ESP_OK;
     nvs_handle_t h;
-    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h);
-    if (err != ESP_OK) return err;
-    int32_t val = 0;
-    err = nvs_get_i32(h, key, &val);
-    if (err == ESP_OK && out_value) *out_value = val;
-    nvs_close(h);
+    if((err = nvs_open(NVS_NAMESPACE, NVS_READONLY, &h)) == ESP_OK) {
+        int32_t val = 0;
+        if((err = nvs_get_i32(h, key, &val)) == ESP_OK) {
+            ESP_LOGI(TAG, "Loaded %s from NVS: %d", key, val);
+            if (out_value) *out_value = val;
+        } else {
+            ESP_LOGI(TAG, "NVS key %s error; using default", key);
+            *out_value = default_value;
+        }
+        nvs_close(h);
+    }
     return err;
 }
 
-static void load_str_with_default(const char *key, char *out, size_t out_len, const char *def)
+void load_str_from_nvs(const char *key, char *out, size_t out_len, const char *def)
 {
     nvs_handle_t h;
     if (nvs_open(NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
@@ -51,16 +55,15 @@ static void load_str_with_default(const char *key, char *out, size_t out_len, co
     ESP_LOGI(TAG, "Using default for %s", key);
 }
 
-static void update_from_nvs(const char *key, int *out_value, int default_value)
+esp_err_t save_str_to_nvs(const char *key, const char *value)
 {
-    // load stored from NVS (if present)
-    if (load_from_nvs(key, out_value) == ESP_OK && *out_value > 0) {
-        ESP_LOGI(TAG, "Loaded %s from NVS: %d", key, *out_value);
-    } else {
-        ESP_LOGI(TAG, "Using default %s: %d", key, default_value);
-        save_to_nvs(key, default_value);
-        *out_value = default_value;
-    }
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_str(h, key, value);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    return err;
 }
 
 void config_init()
@@ -73,25 +76,24 @@ void config_init()
 
     ESP_ERROR_CHECK(ret);
 
+    load_int_from_nvs("report_interval", (int *)&config_params.report_interval_seconds, REPORT_INTERVAL_SECONDS);
+    load_int_from_nvs("battery_min_mv", (int *)&config_params.battery_min_mv, BAT_MIN_MV);
+    load_int_from_nvs("battery_max_mv", (int *)&config_params.battery_max_mv, BAT_MAX_MV);
+
     // Load network credentials from NVS — fall back to Kconfig compile-time defaults
-    load_str_with_default("wifi_ssid",   config_params.wifi_ssid,   sizeof(config_params.wifi_ssid),   WIFI_SSID);
-    load_str_with_default("wifi_pass",   config_params.wifi_pass,   sizeof(config_params.wifi_pass),   WIFI_PASS);
-    load_str_with_default("mqtt_uri",    config_params.mqtt_uri,    sizeof(config_params.mqtt_uri),    MQTT_URI);
-    load_str_with_default("mqtt_user",   config_params.mqtt_user,   sizeof(config_params.mqtt_user),   MQTT_USER);
-    load_str_with_default("mqtt_pass",   config_params.mqtt_pass,   sizeof(config_params.mqtt_pass),   MQTT_PASS);
-    load_str_with_default("mqtt_topic",  config_params.mqtt_topic,  sizeof(config_params.mqtt_topic),  MQTT_TOPIC);
+    load_str_from_nvs("wifi_ssid",   config_params.wifi_ssid,   sizeof(config_params.wifi_ssid),   WIFI_SSID);
+    load_str_from_nvs("wifi_pass",   config_params.wifi_pass,   sizeof(config_params.wifi_pass),   WIFI_PASS);
+    load_str_from_nvs("mqtt_uri",    config_params.mqtt_uri,    sizeof(config_params.mqtt_uri),    MQTT_URI);
+    load_str_from_nvs("mqtt_user",   config_params.mqtt_user,   sizeof(config_params.mqtt_user),   MQTT_USER);
+    load_str_from_nvs("mqtt_pass",   config_params.mqtt_pass,   sizeof(config_params.mqtt_pass),   MQTT_PASS);
+    load_str_from_nvs("mqtt_topic",  config_params.mqtt_topic,  sizeof(config_params.mqtt_topic),  MQTT_TOPIC);
 }
 
 void config_subscribe()
 {
-    update_from_nvs("report_interval", (int *)&config_params.report_interval_seconds, REPORT_INTERVAL_SECONDS);
     mqtt_subscribe_config("report_interval");
-    update_from_nvs("battery_min_mv", (int *)&config_params.battery_min_mv, BAT_MIN_MV);
     mqtt_subscribe_config("battery_min_mv");
-    update_from_nvs("battery_max_mv", (int *)&config_params.battery_max_mv, BAT_MAX_MV);
     mqtt_subscribe_config("battery_max_mv");
-
-    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
 }
 
 void config_publish()
@@ -106,13 +108,13 @@ void config_update_value_in_nvs(const char *name, int value)
     esp_err_t r = ESP_ERR_INVALID_ARG;
 
     if(strcmp(name, "report_interval") == 0 && value != config_params.report_interval_seconds) {
-        r = save_to_nvs("report_interval", value);
+        r = save_int_to_nvs("report_interval", value);
         if (r == ESP_OK) config_params.report_interval_seconds = value;
     } else if(strcmp(name, "battery_min_mv") == 0 && value != config_params.battery_min_mv) {
-        r = save_to_nvs("battery_min_mv", value);
+        r = save_int_to_nvs("battery_min_mv", value);
         if (r == ESP_OK) config_params.battery_min_mv = value;
     } else if(strcmp(name, "battery_max_mv") == 0 && value != config_params.battery_max_mv) {
-        r = save_to_nvs("battery_max_mv", value);
+        r = save_int_to_nvs("battery_max_mv", value);
         if (r == ESP_OK) config_params.battery_max_mv = value;
     } else {
         ESP_LOGW(TAG, "Unknown config key or value not changed: %s", name);

@@ -47,6 +47,10 @@ void config_init();
 void config_publish();
 void config_subscribe();
 void config_update_value_in_nvs(const char *name, int value);
+void load_str_from_nvs(const char *key, char *buf, size_t buf_size, const char *default_val);
+esp_err_t load_int_from_nvs(const char *key, volatile int *out_value, int default_value);
+esp_err_t save_int_to_nvs(const char *key, int value);
+esp_err_t save_str_to_nvs(const char *key, const char *value);
 config_t* get_config_ptr();
 
 // MQTT

@@ -155,6 +155,8 @@ void app_main(void)
 
     config_subscribe();
 
+    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
+
     battery_measure();
 
     battery_status_publish();
