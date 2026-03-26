@@ -6,6 +6,7 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_attr.h"
+#include "esp_log.h"
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
 
@@ -120,6 +121,10 @@ static bool init()
 void app_main(void)
 {
     ESP_LOGI(TAG, "Starting esp32_mqtt_sensor");
+
+    esp_log_level_set("*", ESP_LOG_NONE);    // disable all logs
+    esp_log_level_set(TAG, ESP_LOG_INFO);    // except for our own TAG, which we set to INFO level
+
     // publish firmware version and log it
 #ifdef PROJECT_VERSION
     const char *fw_version = PROJECT_VERSION;
