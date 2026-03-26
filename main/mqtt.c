@@ -1,6 +1,7 @@
 #include "mqtt_client.h"
 #include "esp_event.h"
 #include "esp_mac.h"
+#include "esp_tls.h"
 
 #include "common.h"
 
@@ -68,6 +69,21 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         }
         break;
     }
+    case MQTT_EVENT_ERROR: {
+        esp_mqtt_event_handle_t event = event_data;
+        if (event && event->error_handle) {
+            if (event->error_handle->esp_tls_last_esp_err == ESP_ERR_ESP_TLS_CANNOT_RESOLVE_HOSTNAME) {
+                ESP_LOGW(TAG, "MQTT TLS error: cannot resolve hostname. Check MQTT URI and network connectivity.");
+            } else {
+                ESP_LOGW(TAG, "MQTT_EVENT_ERROR: type=%d esp_tls_last_esp_err=0x%x",
+                         event->error_handle->error_type,
+                         event->error_handle->esp_tls_last_esp_err);
+            }
+        } else {
+            ESP_LOGW(TAG, "MQTT_EVENT_ERROR (no error_handle)");
+        }
+        break;
+    }
     default:
         break;
     }
@@ -82,6 +98,9 @@ void mqtt_app_start(void)
         .credentials.username = net_cfg->mqtt_user,
         .credentials.authentication.password = net_cfg->mqtt_pass,
         .session.disable_clean_session = true, // to receive retained messages on subscribe
+        .network.disable_auto_reconnect = false, // enable auto reconnect
+        .network.timeout_ms = 3000, // connection timeout
+        .network.reconnect_timeout_ms = 3000, // reconnect timeout
     };
 
     // create MQTT base topic that includes device unique id

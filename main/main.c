@@ -101,12 +101,20 @@ static void deep_sleep()
     esp_deep_sleep_start();
 }
 
-static void init()
+static bool init()
 {
+    wifi_platform_init();
     wifi_init_sta();
     wait_until_connected(get_wifi_connected_ptr(), 5000);
+    
     mqtt_app_start();
     wait_until_connected(get_mqtt_connected_ptr(), 5000);
+
+    if (*get_wifi_connected_ptr() && *get_mqtt_connected_ptr()) {
+        return true;
+    }
+
+    return false;
 }
 
 void app_main(void)
@@ -122,13 +130,12 @@ void app_main(void)
 
     config_init();
 
-    wifi_platform_init();
-
     // If we woke from deep sleep due to the WAKEUP pin, allow entering AP mode
     esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
     if (cause == ESP_SLEEP_WAKEUP_EXT1) {
         ESP_LOGI(TAG, "Woke from deep sleep via WAKEUP pin");
         if (boot_pin_held_for_5s()) {
+            wifi_platform_init();
             ap_config_start(); // serves config portal; restarts device on save
         }
     }
@@ -137,10 +144,14 @@ void app_main(void)
     config_t *cfg = get_config_ptr();
     if (cfg->wifi_ssid[0] == '\0' || cfg->mqtt_uri[0] == '\0') {
         ESP_LOGW(TAG, "WiFi SSID or MQTT URI not set; starting AP config portal");
+        wifi_platform_init();
         ap_config_start(); // serves config portal; restarts device on save
     }
 
-    init();
+    if(!init()) {
+        ESP_LOGE(TAG, "Failed to initialize WiFi/MQTT. Restarting...");
+        esp_restart();
+    }
 
     config_subscribe();
 
