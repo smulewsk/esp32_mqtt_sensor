@@ -114,6 +114,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/esp32_mqtt_sensor.bin
+          asset_path: ./esp32_mqtt_sensor.bin
           asset_name: esp32_mqtt_sensor.bin
           asset_content_type: application/octet-stream
