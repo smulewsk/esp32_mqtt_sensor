@@ -22,7 +22,7 @@ config MQTT_PASSWORD
 
 config MQTT_TOPIC
     string "MQTT Publish Topic"
-    default "esp32/battery"
+    default "esp32_mqtt_sensor"
 
 config REPORT_INTERVAL_S
     int "Reporting interval (seconds)"
@@ -47,5 +47,13 @@ config BATTERY_MIN_MV
 config BATTERY_MAX_MV
     int "Battery voltage (mV) corresponding to 100%"
     default 4200
+
+config VL53L0X_ENABLE
+        bool "Enable VL53L0X time-of-flight sensor"
+        default n
+        help
+            Enable building and using the VL53L0X sensor driver. When enabled,
+            the VL53L0X driver will be compiled and the firmware will attempt to
+            initialize and publish distance readings at startup.
 
 endmenu

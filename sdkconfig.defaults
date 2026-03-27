@@ -1,0 +1,3 @@
+# Project sdkconfig defaults
+# Disable VL53L0X sensor by default
+CONFIG_VL53L0X_ENABLE=y

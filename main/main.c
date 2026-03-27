@@ -11,7 +11,9 @@
 #include "driver/rtc_io.h"
 
 #include "common.h"
+#ifdef CONFIG_VL53L0X_ENABLE
 #include "vl53l0x.h"
+#endif
 
 // GPIO7 is the WAKEUP button on ESP32-C6 (and most ESP32 dev boards).
 // Change this if your board uses a different pin.
@@ -166,7 +168,8 @@ void app_main(void)
 
     battery_status_publish();
 
-    // VL53L0X sensor init and publish
+    // VL53L0X sensor init and publish (optional)
+#ifdef CONFIG_VL53L0X_ENABLE
     if (vl53l0x_init()) {
         int dist = vl53l0x_read_range_mm();
         char payload[64];
@@ -176,6 +179,7 @@ void app_main(void)
         char payload[] = "-1";
         mqtt_publish("distance", payload, sizeof(payload) - 1);
     }
+#endif
 
     fw_version_publish(fw_version);
 

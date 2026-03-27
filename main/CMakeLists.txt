@@ -1,5 +1,11 @@
+set(srcs "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "ap_config.c")
+
+if(CONFIG_VL53L0X_ENABLE)
+    list(APPEND srcs "vl53l0x.c")
+endif()
+
 idf_component_register(
-    SRCS "vl53l0x.c" "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "ap_config.c"
+    SRCS ${srcs}
     INCLUDE_DIRS "."
     REQUIRES 
         esp_adc
