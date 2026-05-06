@@ -6,6 +6,7 @@
 #include "common.h"
 #include "ota.h"
 
+static const char *TAG = __FILE__;
 
 // MQTT client handle and connection state
 static esp_mqtt_client_handle_t mqtt_client = NULL;

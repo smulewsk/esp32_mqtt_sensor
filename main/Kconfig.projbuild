@@ -48,6 +48,14 @@ config BATTERY_MAX_MV
     int "Battery voltage (mV) corresponding to 100%"
     default 4200
 
+config DISTANCE_MIN_MM
+    int "Minimum distance (mm) corresponding to 0%"
+    default 50
+
+config DISTANCE_MAX_MM
+    int "Maximum distance (mm) corresponding to 100%"
+    default 2000
+
 config VL53L0X_ENABLE
         bool "Enable VL53L0X time-of-flight sensor"
         default n

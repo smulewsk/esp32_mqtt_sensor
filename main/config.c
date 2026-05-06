@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+static const char *TAG = __FILE__;
+
 // NVS key for stored report interval
 #define NVS_NAMESPACE "storage"
 #define NVS_KEY_REPORT_INTERVAL "report_interval"
@@ -79,6 +81,8 @@ void config_init()
     load_int_from_nvs("report_interval", (int *)&config_params.report_interval_seconds, REPORT_INTERVAL_SECONDS);
     load_int_from_nvs("battery_min_mv", (int *)&config_params.battery_min_mv, BAT_MIN_MV);
     load_int_from_nvs("battery_max_mv", (int *)&config_params.battery_max_mv, BAT_MAX_MV);
+    load_int_from_nvs("distance_min_mm", (int *)&config_params.distance_min_mm, DISTANCE_MIN_MM);
+    load_int_from_nvs("distance_max_mm", (int *)&config_params.distance_max_mm, DISTANCE_MAX_MM);
 
     // Load network credentials from NVS — fall back to Kconfig compile-time defaults
     load_str_from_nvs("wifi_ssid",   config_params.wifi_ssid,   sizeof(config_params.wifi_ssid),   WIFI_SSID);
@@ -94,6 +98,8 @@ void config_subscribe()
     mqtt_subscribe_config("report_interval");
     mqtt_subscribe_config("battery_min_mv");
     mqtt_subscribe_config("battery_max_mv");
+    mqtt_subscribe_config("distance_min_mm");
+    mqtt_subscribe_config("distance_max_mm");
     // subscribe for OTA URL updates (string payload)
     mqtt_subscribe_config("ota_url");
 }
@@ -103,6 +109,8 @@ void config_publish()
     mqtt_publish_config("report_interval", config_params.report_interval_seconds);
     mqtt_publish_config("battery_min_mv", config_params.battery_min_mv);
     mqtt_publish_config("battery_max_mv", config_params.battery_max_mv);
+    mqtt_publish_config("distance_min_mm", config_params.distance_min_mm);
+    mqtt_publish_config("distance_max_mm", config_params.distance_max_mm);
 }
 
 void config_update_value_in_nvs(const char *name, int value)
@@ -118,6 +126,12 @@ void config_update_value_in_nvs(const char *name, int value)
     } else if(strcmp(name, "battery_max_mv") == 0 && value != config_params.battery_max_mv) {
         r = save_int_to_nvs("battery_max_mv", value);
         if (r == ESP_OK) config_params.battery_max_mv = value;
+    } else if(strcmp(name, "distance_min_mm") == 0 && value != config_params.distance_min_mm) {
+        r = save_int_to_nvs("distance_min_mm", value);
+        if (r == ESP_OK) config_params.distance_min_mm = value;
+    } else if(strcmp(name, "distance_max_mm") == 0 && value != config_params.distance_max_mm) {
+        r = save_int_to_nvs("distance_max_mm", value);
+        if (r == ESP_OK) config_params.distance_max_mm = value;
     } else {
         ESP_LOGW(TAG, "Unknown config key or value not changed: %s", name);
         return;
