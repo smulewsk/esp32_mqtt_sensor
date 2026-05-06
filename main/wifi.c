@@ -4,7 +4,7 @@
 
 #include "common.h"
 
-static const char *TAG = __FILE__;
+static const char *TAG = "wifi";
 
 static volatile bool wifi_connected = false;
 

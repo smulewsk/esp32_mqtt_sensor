@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-static const char *TAG = __FILE__;
+static const char *TAG = "config";
 
 // NVS key for stored report interval
 #define NVS_NAMESPACE "storage"

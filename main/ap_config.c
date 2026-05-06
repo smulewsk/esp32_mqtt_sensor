@@ -12,7 +12,7 @@
 
 #include "common.h"
 
-static const char *TAG = __FILE__;
+static const char *TAG = "ap_config";
 
 #define AP_SSID      "ESP32-Setup"
 #define AP_CHANNEL   1
