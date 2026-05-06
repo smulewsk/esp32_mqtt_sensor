@@ -21,9 +21,8 @@
 #define DIV_R2_OHMS CONFIG_BATTERY_DIVIDER_R2
 #define BAT_MIN_MV CONFIG_BATTERY_MIN_MV
 #define BAT_MAX_MV CONFIG_BATTERY_MAX_MV
-
-#define TAG "esp32_mqtt_sensor"
-
+#define DISTANCE_MIN_MM CONFIG_DISTANCE_MIN_MM
+#define DISTANCE_MAX_MM CONFIG_DISTANCE_MAX_MM
 
 // ADC and battery measurement
 void battery_measure();
@@ -35,6 +34,8 @@ typedef struct config_t {
     int report_interval_seconds;
     int battery_min_mv;
     int battery_max_mv;
+    int distance_min_mm;
+    int distance_max_mm;
     char wifi_ssid[64];
     char wifi_pass[64];
     char mqtt_uri[128];

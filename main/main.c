@@ -15,6 +15,8 @@
 #include "vl53l0x.h"
 #endif
 
+static const char *TAG = __FILE__;
+
 // GPIO7 is the WAKEUP button on ESP32-C6 (and most ESP32 dev boards).
 // Change this if your board uses a different pin.
 #define WAKEUP_PIN 7
@@ -66,6 +68,18 @@ static void battery_status_publish()
     
     mqtt_publish("battery", payload, len);
 }
+#ifdef CONFIG_VL53L0X_ENABLE
+static void distance_status_publish()
+{
+    int dist_mm = vl53l0x_read_range_mm();
+    int pct = distance_percent_from_mm(dist_mm);
+
+    char payload[128];
+    int len = snprintf(payload, sizeof(payload), "{\"mm\":%d,\"percent\":%d}", dist_mm, pct);
+    
+    mqtt_publish("distance", payload, len);
+}
+#endif
 
 static void fw_version_publish(const char *fw_version)
 {
@@ -171,10 +185,7 @@ void app_main(void)
     // VL53L0X sensor init and publish (optional)
 #ifdef CONFIG_VL53L0X_ENABLE
     if (vl53l0x_init()) {
-        int dist = vl53l0x_read_range_mm();
-        char payload[64];
-        int len = snprintf(payload, sizeof(payload), "%d", dist);
-        mqtt_publish("distance", payload, len);
+        distance_status_publish();
     } else {
         char payload[] = "-1";
         mqtt_publish("distance", payload, sizeof(payload) - 1);

@@ -12,6 +12,8 @@
 
 #include "common.h"
 
+static const char *TAG = __FILE__;
+
 #define AP_SSID      "ESP32-Setup"
 #define AP_CHANNEL   1
 #define AP_MAX_STA   4

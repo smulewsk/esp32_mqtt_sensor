@@ -4,6 +4,8 @@
 
 #include "common.h"
 
+static const char *TAG = __FILE__;
+
 static volatile bool wifi_connected = false;
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
