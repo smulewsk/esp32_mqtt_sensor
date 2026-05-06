@@ -57,6 +57,7 @@ config_t* get_config_ptr();
 void mqtt_app_start();
 void mqtt_cleanup();
 void mqtt_publish(const char *subtopic, const char *payload, int len);
+void mqtt_publish_retained(const char *subtopic, const char *payload, int len);
 void mqtt_subscribe(const char *subtopic);
 void mqtt_publish_config(const char *key, int value);
 void mqtt_subscribe_config(const char *key);
