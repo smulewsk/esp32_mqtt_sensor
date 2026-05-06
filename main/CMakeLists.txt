@@ -1,4 +1,4 @@
-set(srcs "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "ap_config.c")
+set(srcs "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "ap_config.c" "ota.c")
 
 if(CONFIG_VL53L0X_ENABLE)
     list(APPEND srcs "vl53l0x.c")
@@ -17,6 +17,8 @@ idf_component_register(
         esp_pm
         driver
         esp_http_server
+        esp_http_client
+        esp_https_ota
 )
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/VERSION")

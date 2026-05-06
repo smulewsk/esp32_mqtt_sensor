@@ -4,6 +4,7 @@
 #include "esp_tls.h"
 
 #include "common.h"
+#include "ota.h"
 
 
 // MQTT client handle and connection state
@@ -55,15 +56,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         int matches = sscanf(topic, "%*[^/]/%*[^/]/%[^/]", name);
 
         if (matches) {
-            // copy payload
-            char payload[64];
+            // copy payload (allow string payloads for OTA URL)
+            char payload[256];
             int plen = event->data_len < (int)sizeof(payload) - 1 ? event->data_len : (int)sizeof(payload) - 1;
             memcpy(payload, event->data, plen);
             payload[plen] = '\0';
             ESP_LOGI(TAG, "Received %s payload: %s", name, payload);
-            
-            int received_value = atoi(payload);
-            config_update_value_in_nvs(name, received_value);
+
+            if (strcmp(name, "ota_url") == 0) {
+                // trigger OTA update from provided URL (blocking call, but that's ok since device will reboot if successful)
+                if (strlen(payload) > 0) {
+                    if (ota_perform_update(payload) != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to perform OTA update for URL: %s", payload);
+                    }
+                } else {
+                    ESP_LOGW(TAG, "Empty OTA URL received; ignoring");
+                }
+            } else {
+                int received_value = atoi(payload);
+                config_update_value_in_nvs(name, received_value);
+            }
         } else {
             ESP_LOGW(TAG, "Received message on unexpected topic pattern: %s", topic);
         }
@@ -134,6 +146,18 @@ void mqtt_publish(const char *topic_suffix, const char *payload, int len)
         ESP_LOGI(TAG, "Published: %s, msg_id=%d", payload, msg_id);
     } else {
         ESP_LOGW(TAG, "MQTT not connected; cannot publish %s: %s", topic_suffix, payload);
+    }
+}
+
+void mqtt_publish_retained(const char *topic_suffix, const char *payload, int len)
+{
+    if (mqtt_client) {
+        char full_topic[256];
+        snprintf(full_topic, sizeof(full_topic), "%s/%s", base_mqtt_topic, topic_suffix);
+        int msg_id = esp_mqtt_client_publish(mqtt_client, full_topic, payload, len, 1, 1);
+        ESP_LOGI(TAG, "Published retained: %s, msg_id=%d", payload, msg_id);
+    } else {
+        ESP_LOGW(TAG, "MQTT client not initialized; cannot publish retained %s", topic_suffix);
     }
 }
 

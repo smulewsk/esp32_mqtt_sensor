@@ -94,6 +94,8 @@ void config_subscribe()
     mqtt_subscribe_config("report_interval");
     mqtt_subscribe_config("battery_min_mv");
     mqtt_subscribe_config("battery_max_mv");
+    // subscribe for OTA URL updates (string payload)
+    mqtt_subscribe_config("ota_url");
 }
 
 void config_publish()
