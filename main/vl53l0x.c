@@ -5,7 +5,7 @@
 #include "freertos/task.h"
 #include "common.h"
 
-static const char *TAG = __FILE__;
+static const char *TAG = "vl53l0x";
 static bool s_present = false;
 
 // VL53L0X I2C address

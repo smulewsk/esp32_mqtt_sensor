@@ -15,7 +15,7 @@
 #include "vl53l0x.h"
 #endif
 
-static const char *TAG = __FILE__;
+static const char *TAG = "main";
 
 // GPIO7 is the WAKEUP button on ESP32-C6 (and most ESP32 dev boards).
 // Change this if your board uses a different pin.
@@ -139,7 +139,16 @@ void app_main(void)
     ESP_LOGI(TAG, "Starting esp32_mqtt_sensor");
 
     esp_log_level_set("*", ESP_LOG_NONE);    // disable all logs
-    esp_log_level_set(TAG, ESP_LOG_INFO);    // except for our own TAG, which we set to INFO level
+    esp_log_level_set("main", ESP_LOG_INFO);    // except for our own main, which we set to INFO level
+    //esp_log_level_set("wifi", ESP_LOG_INFO);    // and WiFi logs, which are often useful to debug connectivity issues
+    esp_log_level_set("mqtt", ESP_LOG_INFO);    // enable MQTT logs
+    esp_log_level_set("ota", ESP_LOG_INFO);    // enable OTA logs
+    esp_log_level_set("config", ESP_LOG_INFO); // enable config-related logs
+    esp_log_level_set("ap_config", ESP_LOG_INFO); // enable AP config logs
+    esp_log_level_set("adc", ESP_LOG_INFO);     // enable ADC/battery measurement logs
+#ifdef CONFIG_VL53L0X_ENABLE
+    esp_log_level_set("vl53l0x", ESP_LOG_INFO); // and VL53L0X sensor logs
+#endif
 
     // publish firmware version and log it
 #ifdef PROJECT_VERSION

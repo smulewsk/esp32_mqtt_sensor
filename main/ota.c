@@ -10,7 +10,7 @@
 #include "common.h"
 #include <ctype.h>
 
-static const char *TAG = __FILE__;
+static const char *TAG = "ota";
 
 // buffer size for HTTP download (increase to avoid "Out of buffer" errors)
 #define OTA_HTTP_BUF_SIZE 4096
