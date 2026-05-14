@@ -64,4 +64,12 @@ config VL53L0X_ENABLE
             the VL53L0X driver will be compiled and the firmware will attempt to
             initialize and publish distance readings at startup.
 
+config VL53L1X_ENABLE
+        bool "Enable VL53L1X time-of-flight sensor"
+        default n
+        help
+            Enable building and using the VL53L1X sensor driver. When enabled,
+            the VL53L1X driver will be compiled and the firmware will attempt to
+            initialize and publish distance readings at startup.
+
 endmenu

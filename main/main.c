@@ -14,6 +14,9 @@
 #ifdef CONFIG_VL53L0X_ENABLE
 #include "vl53l0x.h"
 #endif
+#ifdef CONFIG_VL53L1X_ENABLE
+#include "vl53l1x.h"
+#endif
 
 static const char *TAG = "main";
 
@@ -68,10 +71,14 @@ static void battery_status_publish()
     
     mqtt_publish("battery", payload, len);
 }
-#ifdef CONFIG_VL53L0X_ENABLE
+#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
 static void distance_status_publish()
 {
+#if defined(CONFIG_VL53L1X_ENABLE)
+    int dist_mm = vl53l1x_read_range_mm();
+#elif defined(CONFIG_VL53L0X_ENABLE)
     int dist_mm = vl53l0x_read_range_mm();
+#endif
     int pct = distance_percent_from_mm(dist_mm);
 
     char payload[128];
@@ -149,6 +156,9 @@ void app_main(void)
 #ifdef CONFIG_VL53L0X_ENABLE
     esp_log_level_set("vl53l0x", ESP_LOG_INFO); // and VL53L0X sensor logs
 #endif
+#ifdef CONFIG_VL53L1X_ENABLE
+    esp_log_level_set("vl53l1x", ESP_LOG_INFO); // and VL53L1X sensor logs
+#endif
 
     // publish firmware version and log it
 #ifdef PROJECT_VERSION
@@ -191,8 +201,16 @@ void app_main(void)
 
     battery_status_publish();
 
-    // VL53L0X sensor init and publish (optional)
-#ifdef CONFIG_VL53L0X_ENABLE
+    // Distance sensor init and publish (optional)
+#if defined(CONFIG_VL53L1X_ENABLE)
+    // Prefer VL53L1X when enabled
+    if (vl53l1x_init()) {
+        distance_status_publish();
+    } else {
+        char payload[] = "-1";
+        mqtt_publish("distance", payload, sizeof(payload) - 1);
+    }
+#elif defined(CONFIG_VL53L0X_ENABLE)
     if (vl53l0x_init()) {
         distance_status_publish();
     } else {

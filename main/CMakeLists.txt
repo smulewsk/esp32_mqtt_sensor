@@ -4,6 +4,10 @@ if(CONFIG_VL53L0X_ENABLE)
     list(APPEND srcs "vl53l0x.c")
 endif()
 
+if(CONFIG_VL53L1X_ENABLE)
+    list(APPEND srcs "vl53l1x.c")
+endif()
+
 idf_component_register(
     SRCS ${srcs}
     INCLUDE_DIRS "."
