@@ -118,9 +118,18 @@ static bool extract_field(const char *body, const char *field, char *out, size_t
 static esp_err_t get_handler(httpd_req_t *req)
 {
     config_t *cfg = get_config_ptr();
+    // Show a sensible default for mqtt_topic in the form when unset
+    char mqtt_topic_display[sizeof(cfg->mqtt_topic)];
+    if (cfg->mqtt_topic[0] == '\0') {
+        strncpy(mqtt_topic_display, "esp32_mqtt_sensor", sizeof(mqtt_topic_display));
+        mqtt_topic_display[sizeof(mqtt_topic_display) - 1] = '\0';
+    } else {
+        strncpy(mqtt_topic_display, cfg->mqtt_topic, sizeof(mqtt_topic_display));
+        mqtt_topic_display[sizeof(mqtt_topic_display) - 1] = '\0';
+    }
     int needed = snprintf(NULL, 0, HTML_PAGE,
                           cfg->wifi_ssid, cfg->wifi_pass,
-                          cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, cfg->mqtt_topic);
+                          cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display);
     if (needed <= 0) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to format page");
         return ESP_FAIL;
@@ -134,7 +143,7 @@ static esp_err_t get_handler(httpd_req_t *req)
 
     snprintf(html, (size_t)needed + 1, HTML_PAGE,
              cfg->wifi_ssid, cfg->wifi_pass,
-             cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, cfg->mqtt_topic);
+             cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display);
 
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, html, needed);
