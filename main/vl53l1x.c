@@ -151,7 +151,22 @@ bool vl53l1x_init(void)
     vl53l1x_write_reg8(0x007B, 14);   // SD_CONFIG__INITIAL_PHASE_SD1
 
     // Increase measurement timing budget (coarse): set larger ROI/timeout where possible
-    vl53l1x_write_reg16(0x0050, 0x4000); // hypothetical long timeout (device dependent)
+    vl53l1x_write_reg16(0x0050, 0x4000); // coarse long timeout (device dependent)
+
+    // Additional adjustments for transparent cover (glass) compensation:
+    // - increase target rate to improve SNR through cover
+    // - increase effective pulse/ambient estimator widths
+    // - relax consistency checks and raise thresholds
+    vl53l1x_write_reg16(0x0024, 0x1400); // DSS_CONFIG__TARGET_TOTAL_RATE_MCPS (increase)
+    vl53l1x_write_reg8(0x0038, 12);       // SIGMA_ESTIMATOR__EFFECTIVE_PULSE_WIDTH_NS (increase)
+    vl53l1x_write_reg8(0x0037, 24);       // SIGMA_ESTIMATOR__EFFECTIVE_AMBIENT_WIDTH_NS (increase)
+    vl53l1x_write_reg8(0x0016, 0x05);     // ALGO__CROSSTALK_COMPENSATION_VALID_HEIGHT_MM (increase)
+    vl53l1x_write_reg8(0x0040, 0x04);     // ALGO__CONSISTENCY_CHECK__TOLERANCE (relax)
+    vl53l1x_write_reg16(0x0072, 0x00C8); // SYSTEM__THRESH_RATE_HIGH (raise)
+    vl53l1x_write_reg16(0x0074, 0x0032); // SYSTEM__THRESH_RATE_LOW (raise)
+    vl53l1x_write_reg8(0x0024, 0x4C);     // DSS_CONFIG__APERTURE_ATTENUATION (increase)
+
+    ESP_LOGI(TAG, "VL53L1X long-range + cover-glass settings applied");
 
     ESP_LOGI(TAG, "VL53L1X initialized for long range (model=0x%04X)", model);
     s_present = true;
