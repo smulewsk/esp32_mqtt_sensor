@@ -36,6 +36,7 @@ static bool boot_pin_held_for_5s(void)
     gpio_config(&io_conf);
 
     if (gpio_get_level(WAKEUP_PIN) != 0) {
+        ESP_LOGI(TAG, "WAKEUP pin not held at boot");
         return false; // not held
     }
 
@@ -43,6 +44,7 @@ static bool boot_pin_held_for_5s(void)
     for (int i = 0; i < 50; i++) {
         vTaskDelay(pdMS_TO_TICKS(100));
         if (gpio_get_level(WAKEUP_PIN) != 0) {
+            ESP_LOGI(TAG, "WAKEUP pin released after %d ms", (i + 1) * 100);
             return false; // released early
         }
     }
@@ -170,14 +172,16 @@ void app_main(void)
 
     config_init();
 
-    // If we woke from deep sleep due to the WAKEUP pin, allow entering AP mode
-    esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-    if (cause == ESP_SLEEP_WAKEUP_EXT1) {
-        ESP_LOGI(TAG, "Woke from deep sleep via WAKEUP pin");
-        if (boot_pin_held_for_5s()) {
-            wifi_platform_init();
-            ap_config_start(); // serves config portal; restarts device on save
-        }
+    if(rtc_gpio_is_valid_gpio(WAKEUP_PIN)) {
+        ESP_LOGI(TAG, "Use pin %d to enter to AP mode", WAKEUP_PIN);
+    } else {
+        ESP_LOGW(TAG, "WAKEUP pin %d is NOT RTC GPIO capable; wake from deep sleep via WAKEUP pin will not work!", WAKEUP_PIN);
+    }
+
+    // If WAKEUP_PIN is held at boot for 5 seconds, start AP config portal immediately (overrides normal WiFi/MQTT init and deep sleep flow)
+    if (boot_pin_held_for_5s()) {
+        wifi_platform_init();
+        ap_config_start(); // serves config portal; restarts device on save
     }
 
     // If WiFi SSID or MQTT URI are not set, start AP config portal immediately
