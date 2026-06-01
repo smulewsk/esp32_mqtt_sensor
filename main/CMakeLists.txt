@@ -1,4 +1,4 @@
-set(srcs "wifi.c" "adc.c" "mqtt.c" "main.c" "config.c" "ap_config.c" "ota.c")
+set(srcs "wifi.c" "adc_manager.c" "battery.c" "mqtt.c" "main.c" "config.c" "ap_config.c" "ota.c" "common.c")
 
 if(CONFIG_VL53L0X_ENABLE)
     list(APPEND srcs "vl53l0x.c")
@@ -6,6 +6,10 @@ endif()
 
 if(CONFIG_VL53L1X_ENABLE)
     list(APPEND srcs "vl53l1x.c")
+endif()
+
+if(CONFIG_TL136_ENABLE)
+    list(APPEND srcs "tl136.c")
 endif()
 
 idf_component_register(

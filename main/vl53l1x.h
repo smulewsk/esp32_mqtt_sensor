@@ -15,6 +15,3 @@ bool vl53l1x_init(void);
 
 // read range in millimetres; returns -1 on error/not-implemented
 int vl53l1x_read_range_mm(void);
-
-// helper to convert distance to percentage based on config min/max
-int distance_percent_from_mm(int mm);

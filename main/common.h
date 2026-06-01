@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "esp_log.h"
+#include "esp_err.h"
 
 // Kconfig-provided values
 #define WIFI_SSID CONFIG_WIFI_SSID
@@ -21,10 +22,8 @@
 #define DIV_R2_OHMS CONFIG_BATTERY_DIVIDER_R2
 #define BAT_MIN_MV CONFIG_BATTERY_MIN_MV
 #define BAT_MAX_MV CONFIG_BATTERY_MAX_MV
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
 #define DISTANCE_MIN_MM CONFIG_DISTANCE_MIN_MM
 #define DISTANCE_MAX_MM CONFIG_DISTANCE_MAX_MM
-#endif
 
 // ADC and battery measurement
 void battery_measure();
@@ -36,10 +35,8 @@ typedef struct config_t {
     int report_interval_seconds;
     int battery_min_mv;
     int battery_max_mv;
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
     int distance_min_mm;
     int distance_max_mm;
-#endif
     char wifi_ssid[64];
     char wifi_pass[64];
     char mqtt_uri[128];
@@ -57,6 +54,9 @@ esp_err_t load_int_from_nvs(const char *key, volatile int *out_value, int defaul
 esp_err_t save_int_to_nvs(const char *key, int value);
 esp_err_t save_str_to_nvs(const char *key, const char *value);
 config_t* get_config_ptr();
+
+// Convert distance in millimetres to a percentage based on stored config min/max
+int distance_percent_from_mm(int mm);
 
 // MQTT
 void mqtt_app_start();

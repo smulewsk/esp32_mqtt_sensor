@@ -17,6 +17,9 @@
 #ifdef CONFIG_VL53L1X_ENABLE
 #include "vl53l1x.h"
 #endif
+#ifdef CONFIG_TL136_ENABLE
+#include "tl136.h"
+#endif
 
 static const char *TAG = "main";
 
@@ -73,19 +76,33 @@ static void battery_status_publish()
     
     mqtt_publish("battery", payload, len);
 }
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
+#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE) || defined(CONFIG_TL136_ENABLE)
 static void distance_status_publish()
 {
-#if defined(CONFIG_VL53L1X_ENABLE)
-    int dist_mm = vl53l1x_read_range_mm();
-#elif defined(CONFIG_VL53L0X_ENABLE)
-    int dist_mm = vl53l0x_read_range_mm();
-#endif
-    int pct = distance_percent_from_mm(dist_mm);
-
     char payload[128];
+#if defined(CONFIG_VL53L1X_ENABLE)
+    ESP_LOGI(TAG, "Reading distance from VL53L1X sensor...");
+    int dist_mm = vl53l1x_read_range_mm();
+
+    int pct = distance_percent_from_mm(dist_mm);
     int len = snprintf(payload, sizeof(payload), "{\"mm\":%d,\"percent\":%d}", dist_mm, pct);
-    
+#elif defined(CONFIG_VL53L0X_ENABLE)
+    ESP_LOGI(TAG, "Reading distance from VL53L0X sensor...");
+    int dist_mm = vl53l0x_read_range_mm();
+
+    int pct = distance_percent_from_mm(dist_mm);
+    int len = snprintf(payload, sizeof(payload), "{\"mm\":%d,\"percent\":%d}", dist_mm, pct);
+#elif defined(CONFIG_TL136_ENABLE)
+    ESP_LOGI(TAG, "Reading distance from TL-136 sensor...");
+    tl136_reading_t reading = {0};
+    tl136_read_distance_mm(&reading);
+
+    int pct = distance_percent_from_mm(reading.mm);
+    int len = snprintf(payload, sizeof(payload), "{\"raw\":%d,\"mm\":%d,\"percent\":%d}", reading.raw, reading.mm, pct);
+
+    tl136_power_on(false); // ensure sensor is disabled (if power-on pin configured)
+#endif
+
     mqtt_publish("distance", payload, len);
 }
 #endif
@@ -161,6 +178,9 @@ void app_main(void)
 #ifdef CONFIG_VL53L1X_ENABLE
     esp_log_level_set("vl53l1x", ESP_LOG_INFO); // and VL53L1X sensor logs
 #endif
+#ifdef CONFIG_TL136_ENABLE
+    esp_log_level_set("tl136", ESP_LOG_INFO); // TL-136 analog sensor logs
+#endif
 
     // publish firmware version and log it
 #ifdef PROJECT_VERSION
@@ -221,13 +241,20 @@ void app_main(void)
         char payload[] = "-1";
         mqtt_publish("distance", payload, sizeof(payload) - 1);
     }
+#elif defined(CONFIG_TL136_ENABLE)
+    if (tl136_init()) {
+        distance_status_publish();
+    } else {
+        char payload[] = "-1";
+        mqtt_publish("distance", payload, sizeof(payload) - 1);
+    }
 #endif
 
     fw_version_publish(fw_version);
 
     config_publish();
 
-    vTaskDelay(pdMS_TO_TICKS(500)); // wait a bit to ensure messages are sent before deep sleep
+    vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit to ensure messages are sent before deep sleep
 
     deep_sleep();    
 }

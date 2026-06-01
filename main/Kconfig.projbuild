@@ -56,20 +56,91 @@ config DISTANCE_MAX_MM
     int "Maximum distance (mm) corresponding to 100%"
     default 2000
 
+choice
+    prompt "Distance sensor selection"
+    help
+        Choose which distance sensor (if any) is present on the board.
+        Only one sensor may be selected at a time. Selecting an option
+        will enable the corresponding driver symbol used by the build.
+
+config DIST_SENSOR_NONE
+    bool "None"
+
+config DIST_SENSOR_VL53L0X
+    bool "VL53L0X"
+    select VL53L0X_ENABLE
+
+config DIST_SENSOR_VL53L1X
+    bool "VL53L1X"
+    select VL53L1X_ENABLE
+
+config DIST_SENSOR_TL136
+    bool "TL-136 (analog)"
+    select TL136_ENABLE
+
+endchoice
+
 config VL53L0X_ENABLE
-        bool "Enable VL53L0X time-of-flight sensor"
-        default n
-        help
-            Enable building and using the VL53L0X sensor driver. When enabled,
-            the VL53L0X driver will be compiled and the firmware will attempt to
-            initialize and publish distance readings at startup.
+    bool
+    default n
+    help
+        Internal symbol. Selected by the distance sensor choice when VL53L0X
+        is chosen. Do not enable directly.
 
 config VL53L1X_ENABLE
-        bool "Enable VL53L1X time-of-flight sensor"
-        default n
+    bool
+    default n
+    help
+        Internal symbol. Selected by the distance sensor choice when VL53L1X
+        is chosen. Do not enable directly.
+
+config TL136_ENABLE
+    bool
+    default n
+    help
+        Internal symbol. Selected by the distance sensor choice when TL-136
+        is chosen. Do not enable directly.
+
+config TL136_ADC_CHANNEL
+        int "ADC1 channel for TL-136 (e.g. 1 for GPIO1)"
+        default 1
         help
-            Enable building and using the VL53L1X sensor driver. When enabled,
-            the VL53L1X driver will be compiled and the firmware will attempt to
-            initialize and publish distance readings at startup.
+            ADC1 channel number used to read the TL-136 analog output.
+
+config TL136_MAX_DISTANCE_MM
+        int "TL-136 maximum distance (mm)"
+        default 5000
+        help
+            Maximum distance (in millimetres) used for linear mapping of ADC
+            readings to distance output.
+
+config TL136_MIN_DISTANCE_MM
+        int "TL-136 minimum distance (mm)"
+        default 0
+        help
+            Minimum distance (in millimetres) used for linear mapping of ADC
+            readings to distance output.
+
+config TL136_POWER_ON_GPIO
+        int "TL-136 power-on GPIO (use 18 for none)"
+        default 18
+        help
+            GPIO number used to power on or enable the TL-136 sensor. If 
+            set to -1, the driver will not attempt to control a power-on pin.
+
+config TL136_RESISTOR_R1_OHMS
+        int "TL-136 voltage divider resistor R1 (ohms)"
+        default 100
+        help        
+            Value of resistor R1 in the voltage divider used for the TL-136 sensor
+            (the resistor between the sensor output and ADC input).
+
+config TL136_RANGE_MM
+        int "TL-136 range (mm)"
+        default 5000
+        help
+            Range of the TL-136 sensor in millimetres. This is used to calculate
+            the current corresponding to the maximum distance, based on the
+            configured voltage divider resistor R1 and the TL-136 current limits.
 
 endmenu
