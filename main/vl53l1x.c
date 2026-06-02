@@ -26,6 +26,11 @@ static esp_err_t i2c_master_init_default(void)
     return i2c_driver_install(VL53L1X_I2C_PORT, I2C_MODE_MASTER, 0, 0, 0);
 }
 
+static esp_err_t i2c_master_deinit(void)
+{
+    return i2c_driver_delete(VL53L1X_I2C_PORT);
+}
+
 // Helpers for 16-bit register I2C access (VL53L1X)
 static esp_err_t vl53l1x_write_reg8(uint16_t reg, uint8_t val)
 {
@@ -104,6 +109,7 @@ bool vl53l1x_init(void)
     if (vl53l1x_read_reg16(0x010F, &model) != ESP_OK) {
         ESP_LOGW(TAG, "VL53L1X not responding at 0x%02X", VL53L1X_ADDR);
         s_present = false;
+        i2c_master_deinit();
         return false;
     }
     ESP_LOGI(TAG, "VL53L1X model id: 0x%04X", model);

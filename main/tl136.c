@@ -41,7 +41,9 @@ static int s_power_on_gpio = -1;
 #define TL136_MAX_CURRENT_MA 20
 #define TL136_MIN_CURRENT_MA 4
 
-int tl136_init(void)
+#define TL136_VOLTAGE_DETECTION_THRESHOLD 350
+
+bool tl136_init(void)
 {
 
 // Configure optional power-on GPIO if provided
@@ -63,19 +65,25 @@ int tl136_init(void)
     // Initialise ADC channel via shared adc_manager
     if (adc_manager_init_channel((adc_channel_t)CONFIG_TL136_ADC_CHANNEL) != ESP_OK) {
         ESP_LOGW(TAG, "adc_manager_init_channel failed");
-        return 0;
+        return false;
     }
-
 
     tl136_power_on(true);
 
     vTaskDelay(pdMS_TO_TICKS(2000));
 
+    int raw = tl136_read_raw();
+    if (raw < TL136_VOLTAGE_DETECTION_THRESHOLD) {
+        s_inited = false;
+        tl136_power_on(false);
+        ESP_LOGW(TAG, "TL-136 not found");
+        return false;
+    }
+
     s_inited = true;
     ESP_LOGI(TAG, "TL-136 ADC channel %d initialized (atten DB_12)", CONFIG_TL136_ADC_CHANNEL);
 
-
-    return 1;
+    return true;
 }
 
 int tl136_read_raw(void)

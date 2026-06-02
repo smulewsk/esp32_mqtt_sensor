@@ -26,6 +26,11 @@ static esp_err_t i2c_master_init_default(void)
     return i2c_driver_install(VL53L0X_I2C_PORT, I2C_MODE_MASTER, 0, 0, 0);
 }
 
+static esp_err_t i2c_master_deinit(void)
+{
+    return i2c_driver_delete(VL53L0X_I2C_PORT);
+}
+
 bool vl53l0x_init(void)
 {
     esp_err_t err = i2c_master_init_default();
@@ -49,8 +54,9 @@ bool vl53l0x_init(void)
         // Note: full sensor init/config sequence not implemented here.
         return true;
     } else {
-        ESP_LOGW(TAG, "VL53L0X not found (err=%d)", err);
+        ESP_LOGW(TAG, "VL53L0X not found at 0x%02X", VL53L0X_ADDR);
         s_present = false;
+        i2c_master_deinit();
         return false;
     }
 }

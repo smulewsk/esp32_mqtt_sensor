@@ -37,6 +37,7 @@ typedef struct config_t {
     int battery_max_mv;
     int distance_min_mm;
     int distance_max_mm;
+    char distance_sensor[16];
     char wifi_ssid[64];
     char wifi_pass[64];
     char mqtt_uri[128];

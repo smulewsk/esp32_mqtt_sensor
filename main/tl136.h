@@ -8,8 +8,8 @@ typedef struct {
     int mm;  // estimated distance in millimetres (mapped from current)
 } tl136_reading_t;
 
-// Initialize the TL-136 driver (configure ADC). Returns non-zero on success.
-int tl136_init(void);
+// Initialize the TL-136 driver (configure ADC). Returns true on success.
+bool tl136_init(void);
 
 // Read raw ADC value (0..4095). Returns negative on error.
 int tl136_read_raw(void);

@@ -86,6 +86,9 @@ void config_init()
     load_int_from_nvs("distance_max_mm", (int *)&config_params.distance_max_mm, DISTANCE_MAX_MM);
 #endif
 
+    /* Load runtime distance sensor selection (eg. "auto", "vl53l1x", "vl53l0x", "tl136", "none") */
+    load_str_from_nvs("distance_sensor", config_params.distance_sensor, sizeof(config_params.distance_sensor), "auto");
+
     // Load network credentials from NVS — fall back to Kconfig compile-time defaults
     load_str_from_nvs("wifi_ssid",   config_params.wifi_ssid,   sizeof(config_params.wifi_ssid),   WIFI_SSID);
     load_str_from_nvs("wifi_pass",   config_params.wifi_pass,   sizeof(config_params.wifi_pass),   WIFI_PASS);

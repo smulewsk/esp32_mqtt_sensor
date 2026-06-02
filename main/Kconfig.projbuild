@@ -56,47 +56,23 @@ config DISTANCE_MAX_MM
     int "Maximum distance (mm) corresponding to 100%"
     default 2000
 
-choice
-    prompt "Distance sensor selection"
-    help
-        Choose which distance sensor (if any) is present on the board.
-        Only one sensor may be selected at a time. Selecting an option
-        will enable the corresponding driver symbol used by the build.
-
-config DIST_SENSOR_NONE
-    bool "None"
-
-config DIST_SENSOR_VL53L0X
-    bool "VL53L0X"
-    select VL53L0X_ENABLE
-
-config DIST_SENSOR_VL53L1X
-    bool "VL53L1X"
-    select VL53L1X_ENABLE
-
-config DIST_SENSOR_TL136
-    bool "TL-136 (analog)"
-    select TL136_ENABLE
-
-endchoice
-
 config VL53L0X_ENABLE
-    bool
-    default n
+    bool "VL53L0X distance sensor support"
+    default y
     help
         Internal symbol. Selected by the distance sensor choice when VL53L0X
         is chosen. Do not enable directly.
 
 config VL53L1X_ENABLE
-    bool
-    default n
+    bool "VL53L1X distance sensor support"
+    default y
     help
         Internal symbol. Selected by the distance sensor choice when VL53L1X
         is chosen. Do not enable directly.
 
 config TL136_ENABLE
-    bool
-    default n
+    bool "TL-136 distance sensor support"
+    default y
     help
         Internal symbol. Selected by the distance sensor choice when TL-136
         is chosen. Do not enable directly.

@@ -58,6 +58,11 @@ static const char *HTML_PAGE =
     "<input name='mqtt_pass' type='password' value='%s'>"
     "<label>Topic prefix</label><input name='mqtt_topic' value='%s'>"
     "</div>"
+    "<div class='card'>"
+    "<b>Distance Sensor</b>"
+    "%s"
+    "<p class='hint'>Choose which distance sensor to use (or Auto to probe available sensors).</p>"
+    "</div>"
     "<button type='submit'>Save &amp; Restart</button>"
     "<p class='hint'>Device will restart and connect with the new settings.</p>"
     "</form></body></html>";
@@ -127,9 +132,39 @@ static esp_err_t get_handler(httpd_req_t *req)
         strncpy(mqtt_topic_display, cfg->mqtt_topic, sizeof(mqtt_topic_display));
         mqtt_topic_display[sizeof(mqtt_topic_display) - 1] = '\0';
     }
+    // Build a small <select> with the current distance sensor selection
+    char select_html[512];
+    const char *cur = cfg->distance_sensor[0] ? cfg->distance_sensor : "auto";
+    snprintf(select_html, sizeof(select_html),
+             "<label>Sensor</label><select name='distance_sensor'>"
+             "<option value='auto'%s>Auto (probe)</option>"
+#if defined(CONFIG_VL53L1X_ENABLE)
+             "<option value='vl53l1x'%s>VL53L1X</option>"
+#endif
+#if defined(CONFIG_VL53L0X_ENABLE)
+             "<option value='vl53l0x'%s>VL53L0X</option>"
+#endif
+#if defined(CONFIG_TL136_ENABLE)
+             "<option value='tl136'%s>TL-136 (analog)</option>"
+#endif
+             "<option value='none'%s>None</option>"
+             "</select>",
+             strcmp(cur, "auto") == 0 ? " selected" : "",
+#if defined(CONFIG_VL53L1X_ENABLE)
+             strcmp(cur, "vl53l1x") == 0 ? " selected" : "",
+#endif
+#if defined(CONFIG_VL53L0X_ENABLE)
+             strcmp(cur, "vl53l0x") == 0 ? " selected" : "",
+#endif
+#if defined(CONFIG_TL136_ENABLE)
+             strcmp(cur, "tl136") == 0 ? " selected" : "",
+#endif
+             strcmp(cur, "none") == 0 ? " selected" : "");
+
     int needed = snprintf(NULL, 0, HTML_PAGE,
                           cfg->wifi_ssid, cfg->wifi_pass,
-                          cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display);
+                          cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display,
+                          select_html);
     if (needed <= 0) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to format page");
         return ESP_FAIL;
@@ -143,7 +178,8 @@ static esp_err_t get_handler(httpd_req_t *req)
 
     snprintf(html, (size_t)needed + 1, HTML_PAGE,
              cfg->wifi_ssid, cfg->wifi_pass,
-             cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display);
+             cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display,
+             select_html);
 
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, html, needed);
@@ -179,6 +215,7 @@ static esp_err_t save_handler(httpd_req_t *req)
     extract_field(body, "mqtt_user",  cfg->mqtt_user,  sizeof(cfg->mqtt_user));
     extract_field(body, "mqtt_pass",  cfg->mqtt_pass,  sizeof(cfg->mqtt_pass));
     extract_field(body, "mqtt_topic", cfg->mqtt_topic, sizeof(cfg->mqtt_topic));
+    extract_field(body, "distance_sensor", cfg->distance_sensor, sizeof(cfg->distance_sensor));
 
     save_str_to_nvs("wifi_ssid",   cfg->wifi_ssid);
     save_str_to_nvs("wifi_pass",   cfg->wifi_pass);
@@ -186,6 +223,7 @@ static esp_err_t save_handler(httpd_req_t *req)
     save_str_to_nvs("mqtt_user",   cfg->mqtt_user);
     save_str_to_nvs("mqtt_pass",   cfg->mqtt_pass);
     save_str_to_nvs("mqtt_topic",  cfg->mqtt_topic);
+    save_str_to_nvs("distance_sensor", cfg->distance_sensor);
 
     ESP_LOGI(TAG, "Config saved — restarting");
 
