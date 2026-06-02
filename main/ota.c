@@ -1,5 +1,3 @@
-#include "ota.h"
-
 #include "esp_crt_bundle.h"
 #include "esp_partition.h"
 #include "esp_system.h"

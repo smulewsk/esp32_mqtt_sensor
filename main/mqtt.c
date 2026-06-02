@@ -4,7 +4,6 @@
 #include "esp_tls.h"
 
 #include "common.h"
-#include "ota.h"
 
 static const char *TAG = "mqtt";
 

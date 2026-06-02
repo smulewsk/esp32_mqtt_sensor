@@ -26,7 +26,7 @@
 #define DISTANCE_MAX_MM CONFIG_DISTANCE_MAX_MM
 
 // ADC and battery measurement
-void battery_measure();
+void battery_measure_and_publish(void);
 float battery_voltage_read(void);
 int battery_percent_from_mv(int mv);
 
@@ -77,3 +77,10 @@ volatile bool* get_wifi_connected_ptr();
 
 // AP config portal
 void ap_config_start(void);
+
+// Distance sensor
+bool distance_sensor_init_and_publish(void);
+
+// OTA update
+esp_err_t ota_perform_update(const char *url);
+

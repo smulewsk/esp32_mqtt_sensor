@@ -1,7 +1,9 @@
-
+#include <math.h>
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+
+#include "adc_manager.h"
 #include "common.h"
 
 
@@ -29,12 +31,20 @@ static int rtc_batt_avg_mv(void)
     return (int)(sum / count);
 }
 
-#include "adc_manager.h"
 
-void battery_measure()
+void battery_measure_and_publish()
 {
     // Ensure ADC unit and channel are initialised via adc_manager
     ESP_ERROR_CHECK(adc_manager_init_channel((adc_channel_t)BAT_ADC_CHANNEL));
+
+    float batt_v = battery_voltage_read();
+    int batt_mv = (int)roundf(batt_v * 1000.0f);
+    int pct = battery_percent_from_mv(batt_mv);
+
+    char payload[128];
+    int len = snprintf(payload, sizeof(payload), "{\"voltage\":%.3f,\"mv\":%d,\"percent\":%d}", batt_v, batt_mv, pct);
+    
+    mqtt_publish("battery", payload, len);
 }
 
 

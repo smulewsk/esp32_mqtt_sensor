@@ -1,5 +1,3 @@
-
-#include <math.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_sleep.h"
@@ -11,15 +9,6 @@
 #include "driver/rtc_io.h"
 
 #include "common.h"
-#ifdef CONFIG_VL53L0X_ENABLE
-#include "vl53l0x.h"
-#endif
-#ifdef CONFIG_VL53L1X_ENABLE
-#include "vl53l1x.h"
-#endif
-#ifdef CONFIG_TL136_ENABLE
-#include "tl136.h"
-#endif
 
 static const char *TAG = "main";
 
@@ -64,70 +53,6 @@ static void wait_until_connected(volatile bool *wait_flag, int max_wait_ms)
         waited_ms += 500;
     }
 }
-
-static void battery_status_publish()
-{
-    float batt_v = battery_voltage_read();
-    int batt_mv = (int)roundf(batt_v * 1000.0f);
-    int pct = battery_percent_from_mv(batt_mv);
-
-    char payload[128];
-    int len = snprintf(payload, sizeof(payload), "{\"voltage\":%.3f,\"mv\":%d,\"percent\":%d}", batt_v, batt_mv, pct);
-    
-    mqtt_publish("battery", payload, len);
-}
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE) || defined(CONFIG_TL136_ENABLE)
-static void distance_status_publish()
-{
-    char payload[128];
-    config_t *cfg = get_config_ptr();
-    const char *sensor = cfg->distance_sensor[0] ? cfg->distance_sensor : "auto";
-    int len = 0;
-
-#if defined(CONFIG_VL53L1X_ENABLE)
-    if (strcmp(sensor, "vl53l1x") == 0 || strcmp(sensor, "auto") == 0) {
-        ESP_LOGI(TAG, "Reading distance from VL53L1X sensor...");
-        int dist_mm = vl53l1x_read_range_mm();
-        int pct = distance_percent_from_mm(dist_mm);
-        len = snprintf(payload, sizeof(payload), "{\"mm\":%d,\"percent\":%d}", dist_mm, pct);
-        mqtt_publish("distance", payload, len);
-        return;
-    }
-#endif
-
-#if defined(CONFIG_VL53L0X_ENABLE)
-    if (strcmp(sensor, "vl53l0x") == 0 || strcmp(sensor, "auto") == 0) {
-        ESP_LOGI(TAG, "Reading distance from VL53L0X sensor...");
-        int dist_mm = vl53l0x_read_range_mm();
-        int pct = distance_percent_from_mm(dist_mm);
-        len = snprintf(payload, sizeof(payload), "{\"mm\":%d,\"percent\":%d}", dist_mm, pct);
-        mqtt_publish("distance", payload, len);
-        return;
-    }
-#endif
-
-#if defined(CONFIG_TL136_ENABLE)
-    if (strcmp(sensor, "tl136") == 0 || strcmp(sensor, "auto") == 0) {
-        ESP_LOGI(TAG, "Reading distance from TL-136 sensor...");
-        tl136_reading_t reading = {0};
-        tl136_read_distance_mm(&reading);
-
-        int pct = distance_percent_from_mm(reading.mm);
-        len = snprintf(payload, sizeof(payload), "{\"raw\":%d,\"mm\":%d,\"percent\":%d}", reading.raw, reading.mm, pct);
-
-        tl136_power_on(false); // ensure sensor is disabled (if power-on pin configured)
-        mqtt_publish("distance", payload, len);
-        return;
-    }
-#endif
-
-    // If we get here, no sensor matched or was available
-    char payload_none[] = "-1";
-    mqtt_publish("distance", payload_none, sizeof(payload_none) - 1);
-
-    mqtt_publish("distance", payload, len);
-}
-#endif
 
 static void fw_version_publish(const char *fw_version)
 {
@@ -193,16 +118,7 @@ void app_main(void)
     esp_log_level_set("ota", ESP_LOG_INFO);    // enable OTA logs
     esp_log_level_set("config", ESP_LOG_INFO); // enable config-related logs
     esp_log_level_set("ap_config", ESP_LOG_INFO); // enable AP config logs
-    esp_log_level_set("adc", ESP_LOG_INFO);     // enable ADC/battery measurement logs
-#ifdef CONFIG_VL53L0X_ENABLE
-    esp_log_level_set("vl53l0x", ESP_LOG_INFO); // and VL53L0X sensor logs
-#endif
-#ifdef CONFIG_VL53L1X_ENABLE
-    esp_log_level_set("vl53l1x", ESP_LOG_INFO); // and VL53L1X sensor logs
-#endif
-#ifdef CONFIG_TL136_ENABLE
-    esp_log_level_set("tl136", ESP_LOG_INFO); // TL-136 analog sensor logs
-#endif
+
 
     // publish firmware version and log it
 #ifdef PROJECT_VERSION
@@ -243,69 +159,11 @@ void app_main(void)
 
     vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
 
-    battery_measure();
+    battery_measure_and_publish();
 
-    battery_status_publish();
-
-    // Distance sensor init and publish (optional) — use runtime selection stored in NVS
+    // Distance sensor init + publish handled by distance_sensor module
 #if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE) || defined(CONFIG_TL136_ENABLE)
-    {
-        config_t *cfg_local = get_config_ptr();
-        const char *sensor = cfg_local->distance_sensor[0] ? cfg_local->distance_sensor : "auto";
-        bool published = false;
-
-        if (strcmp(sensor, "auto") == 0) {
-            // probe preferred sensors in order
-#if defined(CONFIG_VL53L1X_ENABLE)
-            if (vl53l1x_init()) {
-                distance_status_publish();
-                published = true;
-            }
-#endif
-#if defined(CONFIG_VL53L0X_ENABLE)
-            if (!published && vl53l0x_init()) {
-                distance_status_publish();
-                published = true;
-            }
-#endif
-#if defined(CONFIG_TL136_ENABLE)
-            if (!published && tl136_init()) {
-                distance_status_publish();
-                published = true;
-            }
-#endif
-        } else if (strcmp(sensor, "vl53l1x") == 0) {
-#if defined(CONFIG_VL53L1X_ENABLE)
-            if (vl53l1x_init()) {
-                distance_status_publish();
-                published = true;
-            }
-#else
-            ESP_LOGW(TAG, "VL53L1X not compiled in");
-#endif
-        } else if (strcmp(sensor, "vl53l0x") == 0) {
-#if defined(CONFIG_VL53L0X_ENABLE)
-            if (vl53l0x_init()) {
-                distance_status_publish();
-                published = true;
-            }
-#else
-            ESP_LOGW(TAG, "VL53L0X not compiled in");
-#endif
-        } else if (strcmp(sensor, "tl136") == 0) {
-#if defined(CONFIG_TL136_ENABLE)
-            if (tl136_init()) {
-                distance_status_publish();
-                published = true;
-            }
-#else
-            ESP_LOGW(TAG, "TL-136 not compiled in");
-#endif
-        } else if (strcmp(sensor, "none") == 0) {
-            ESP_LOGI(TAG, "Distance sensor disabled by configuration");
-            published = true; // nothing to publish
-        }
-    }
+    distance_sensor_init_and_publish();
 #endif
 
     fw_version_publish(fw_version);

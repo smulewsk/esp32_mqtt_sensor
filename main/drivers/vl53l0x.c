@@ -107,4 +107,3 @@ int vl53l0x_read_range_mm(void)
     ESP_LOGI(TAG, "Measured distance: %d mm", distance_mm);
     return distance_mm > 0 ? distance_mm : -1;
 }
-
