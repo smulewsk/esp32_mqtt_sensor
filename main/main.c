@@ -12,9 +12,9 @@
 
 static const char *TAG = "main";
 
-// GPIO7 is the WAKEUP button on ESP32-C6 (and most ESP32 dev boards).
+// GPIO2 is the WAKEUP button on ESP32-C6 (and most ESP32 dev boards).
 // Change this if your board uses a different pin.
-#define WAKEUP_PIN 7
+#define WAKEUP_PIN 2
 
 static bool boot_pin_held_for_5s(void)
 {
@@ -160,6 +160,11 @@ void app_main(void)
     vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit for any retained message to arrive and be processed
 
     battery_measure_and_publish();
+
+    // Temperature sensor init + publish (optional)
+#if CONFIG_DS18B20_ENABLE
+    temperature_sensor_init_and_publish();
+#endif
 
     // Distance sensor init + publish handled by distance_sensor module
 #if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE) || defined(CONFIG_TL136_ENABLE)

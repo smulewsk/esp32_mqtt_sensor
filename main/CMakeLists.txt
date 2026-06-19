@@ -1,6 +1,7 @@
 set(srcs "wifi.c" "adc_manager.c" "battery.c" "mqtt.c" "main.c" "config.c" "ap_config.c" "ota.c" "common.c")
 
 list(APPEND srcs "sensors/distance_sensor.c")
+list(APPEND srcs "sensors/temperature_sensor.c")
 
 if(CONFIG_VL53L0X_ENABLE)
     list(APPEND srcs "drivers/vl53l0x.c")
@@ -12,6 +13,10 @@ endif()
 
 if(CONFIG_TL136_ENABLE)
     list(APPEND srcs "drivers/tl136.c")
+endif()
+
+if(CONFIG_DS18B20_ENABLE)
+    list(APPEND srcs "drivers/ds18b20.c")
 endif()
 
 idf_component_register(

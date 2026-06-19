@@ -80,6 +80,8 @@ void ap_config_start(void);
 
 // Distance sensor
 bool distance_sensor_init_and_publish(void);
+// Temperature sensor
+bool temperature_sensor_init_and_publish(void);
 
 // OTA update
 esp_err_t ota_perform_update(const char *url);
