@@ -119,4 +119,10 @@ config TL136_RANGE_MM
             the current corresponding to the maximum distance, based on the
             configured voltage divider resistor R1 and the TL-136 current limits.
 
+config STATUS_LED_GPIO
+    int "GPIO for status LED (-1 to disable)"
+    default -1
+    help
+        GPIO number connected to a status LED. Set to -1 to disable LED
+        control. Many dev boards use GPIO2 for the on-board LED.
 endmenu

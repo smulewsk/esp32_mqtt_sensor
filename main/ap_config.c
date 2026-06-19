@@ -10,6 +10,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
+#include "driver/gpio.h"
+
 #include "common.h"
 
 static const char *TAG = "ap_config";
@@ -20,6 +22,21 @@ static const char *TAG = "ap_config";
 #define NVS_NAMESPACE "storage"
 
 #define AP_MODE_TIMEOUT_MS 300000 // 5 minutes
+
+#if CONFIG_STATUS_LED_GPIO >= 0
+static TaskHandle_t led_blink_task_handle = NULL;
+static void led_blink_task(void *arg)
+{
+    gpio_num_t g = (gpio_num_t)(uintptr_t)arg;
+    int level = 0;
+    for (;;) {
+        level = !level;
+        gpio_set_level(g, level);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+    vTaskDelete(NULL);
+}
+#endif
 
 // HTML config page — uses snprintf with %s placeholders for current values.
 // Note: %% is used wherever the HTML/CSS needs a literal % character.
@@ -275,6 +292,16 @@ void ap_config_start(void)
     httpd_register_uri_handler(server, &uri_save);
 
     ESP_LOGI(TAG, "Config portal ready — connect to WiFi '%s', open http://192.168.4.1", AP_SSID);
+
+#if CONFIG_STATUS_LED_GPIO >= 0
+    // Initialise status LED GPIO for blinking while in AP mode
+    gpio_num_t led_gpio = (gpio_num_t)CONFIG_STATUS_LED_GPIO;
+    gpio_reset_pin(led_gpio);
+    gpio_set_direction(led_gpio, GPIO_MODE_OUTPUT);
+
+    // Start blink task with gpio passed as integer in the task arg
+    xTaskCreatePinnedToCore(led_blink_task, "led_blink", 2048, (void *)(uintptr_t)led_gpio, tskIDLE_PRIORITY + 1, &led_blink_task_handle, tskNO_AFFINITY);
+#endif
 
     // Block here; HTTP server tasks run independently.
     // The save_handler will call esp_restart() after saving.
