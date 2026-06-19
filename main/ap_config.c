@@ -75,11 +75,13 @@ static const char *HTML_PAGE =
     "<input name='mqtt_pass' type='password' value='%s'>"
     "<label>Topic prefix</label><input name='mqtt_topic' value='%s'>"
     "</div>"
+#if defined(CONFIG_DISTANCE_ENABLE)
     "<div class='card'>"
     "<b>Distance Sensor</b>"
     "%s"
     "<p class='hint'>Choose which distance sensor to use (or Auto to probe available sensors).</p>"
     "</div>"
+#endif
     "<button type='submit'>Save &amp; Restart</button>"
     "<p class='hint'>Device will restart and connect with the new settings.</p>"
     "</form></body></html>";
@@ -149,6 +151,7 @@ static esp_err_t get_handler(httpd_req_t *req)
         strncpy(mqtt_topic_display, cfg->mqtt_topic, sizeof(mqtt_topic_display));
         mqtt_topic_display[sizeof(mqtt_topic_display) - 1] = '\0';
     }
+#if defined(CONFIG_DISTANCE_ENABLE)
     // Build a small <select> with the current distance sensor selection
     char select_html[512];
     const char *cur = cfg->distance_sensor[0] ? cfg->distance_sensor : "auto";
@@ -182,6 +185,12 @@ static esp_err_t get_handler(httpd_req_t *req)
                           cfg->wifi_ssid, cfg->wifi_pass,
                           cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display,
                           select_html);
+#else
+    int needed = snprintf(NULL, 0, HTML_PAGE,
+                          cfg->wifi_ssid, cfg->wifi_pass,
+                          cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display);
+#endif
+
     if (needed <= 0) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to format page");
         return ESP_FAIL;
@@ -192,11 +201,16 @@ static esp_err_t get_handler(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Out of memory");
         return ESP_FAIL;
     }
-
+#if defined(CONFIG_DISTANCE_ENABLE)
     snprintf(html, (size_t)needed + 1, HTML_PAGE,
              cfg->wifi_ssid, cfg->wifi_pass,
              cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display,
              select_html);
+#else
+    snprintf(html, (size_t)needed + 1, HTML_PAGE,
+             cfg->wifi_ssid, cfg->wifi_pass,
+             cfg->mqtt_uri, cfg->mqtt_user, cfg->mqtt_pass, mqtt_topic_display);
+#endif
 
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, html, needed);
@@ -232,7 +246,9 @@ static esp_err_t save_handler(httpd_req_t *req)
     extract_field(body, "mqtt_user",  cfg->mqtt_user,  sizeof(cfg->mqtt_user));
     extract_field(body, "mqtt_pass",  cfg->mqtt_pass,  sizeof(cfg->mqtt_pass));
     extract_field(body, "mqtt_topic", cfg->mqtt_topic, sizeof(cfg->mqtt_topic));
+#if defined(CONFIG_DISTANCE_ENABLE)
     extract_field(body, "distance_sensor", cfg->distance_sensor, sizeof(cfg->distance_sensor));
+#endif
 
     save_str_to_nvs("wifi_ssid",   cfg->wifi_ssid);
     save_str_to_nvs("wifi_pass",   cfg->wifi_pass);
@@ -240,7 +256,9 @@ static esp_err_t save_handler(httpd_req_t *req)
     save_str_to_nvs("mqtt_user",   cfg->mqtt_user);
     save_str_to_nvs("mqtt_pass",   cfg->mqtt_pass);
     save_str_to_nvs("mqtt_topic",  cfg->mqtt_topic);
+#if defined(CONFIG_DISTANCE_ENABLE)
     save_str_to_nvs("distance_sensor", cfg->distance_sensor);
+#endif
 
     ESP_LOGI(TAG, "Config saved — restarting");
 

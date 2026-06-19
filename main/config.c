@@ -81,13 +81,20 @@ void config_init()
     load_int_from_nvs("report_interval", (int *)&config_params.report_interval_seconds, REPORT_INTERVAL_SECONDS);
     load_int_from_nvs("battery_min_mv", (int *)&config_params.battery_min_mv, BAT_MIN_MV);
     load_int_from_nvs("battery_max_mv", (int *)&config_params.battery_max_mv, BAT_MAX_MV);
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
+#if defined(CONFIG_DISTANCE_ENABLE)
     load_int_from_nvs("distance_min_mm", (int *)&config_params.distance_min_mm, DISTANCE_MIN_MM);
     load_int_from_nvs("distance_max_mm", (int *)&config_params.distance_max_mm, DISTANCE_MAX_MM);
 #endif
 
+#if defined(CONFIG_MOISTURE_ENABLE)
+    load_int_from_nvs("moist_min_adc", (int *)&config_params.moisture_min_adc, 0);
+    load_int_from_nvs("moist_max_adc", (int *)&config_params.moisture_max_adc, 4095);
+#endif
+
+#if defined(CONFIG_DISTANCE_ENABLE)
     /* Load runtime distance sensor selection (eg. "auto", "vl53l1x", "vl53l0x", "tl136", "none") */
     load_str_from_nvs("distance_sensor", config_params.distance_sensor, sizeof(config_params.distance_sensor), "auto");
+#endif
 
     // Load network credentials from NVS — fall back to Kconfig compile-time defaults
     load_str_from_nvs("wifi_ssid",   config_params.wifi_ssid,   sizeof(config_params.wifi_ssid),   WIFI_SSID);
@@ -103,9 +110,13 @@ void config_subscribe()
     mqtt_subscribe_config("report_interval");
     mqtt_subscribe_config("battery_min_mv");
     mqtt_subscribe_config("battery_max_mv");
-#if CONFIG_VL53L0X_ENABLE || CONFIG_VL53L1X_ENABLE
+#if CONFIG_DISTANCE_ENABLE
     mqtt_subscribe_config("distance_min_mm");
     mqtt_subscribe_config("distance_max_mm");
+#endif
+#if CONFIG_MOISTURE_ENABLE
+    mqtt_subscribe_config("moist_min_adc");
+    mqtt_subscribe_config("moist_max_adc");
 #endif
     // subscribe for OTA URL updates (string payload)
     mqtt_subscribe_config("ota_url");
@@ -116,9 +127,13 @@ void config_publish()
     mqtt_publish_config("report_interval", config_params.report_interval_seconds);
     mqtt_publish_config("battery_min_mv", config_params.battery_min_mv);
     mqtt_publish_config("battery_max_mv", config_params.battery_max_mv);
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
+#if defined(CONFIG_DISTANCE_ENABLE)
     mqtt_publish_config("distance_min_mm", config_params.distance_min_mm);
     mqtt_publish_config("distance_max_mm", config_params.distance_max_mm);
+#endif
+#if defined(CONFIG_MOISTURE_ENABLE)
+    mqtt_publish_config("moist_min_adc", config_params.moisture_min_adc);
+    mqtt_publish_config("moist_max_adc", config_params.moisture_max_adc);
 #endif
 }
 
@@ -135,13 +150,21 @@ void config_update_value_in_nvs(const char *name, int value)
     } else if(strcmp(name, "battery_max_mv") == 0 && value != config_params.battery_max_mv) {
         r = save_int_to_nvs("battery_max_mv", value);
         if (r == ESP_OK) config_params.battery_max_mv = value;
-#if defined(CONFIG_VL53L0X_ENABLE) || defined(CONFIG_VL53L1X_ENABLE)
+#if defined(CONFIG_DISTANCE_ENABLE)
     } else if(strcmp(name, "distance_min_mm") == 0 && value != config_params.distance_min_mm) {
         r = save_int_to_nvs("distance_min_mm", value);
         if (r == ESP_OK) config_params.distance_min_mm = value;
     } else if(strcmp(name, "distance_max_mm") == 0 && value != config_params.distance_max_mm) {
         r = save_int_to_nvs("distance_max_mm", value);
         if (r == ESP_OK) config_params.distance_max_mm = value;
+#endif
+#if defined(CONFIG_MOISTURE_ENABLE)
+    } else if(strcmp(name, "moist_min_adc") == 0 && value != config_params.moisture_min_adc) {
+        r = save_int_to_nvs("moist_min_adc", value);
+        if (r == ESP_OK) config_params.moisture_min_adc = value;
+    } else if(strcmp(name, "moist_max_adc") == 0 && value != config_params.moisture_max_adc) {
+        r = save_int_to_nvs("moist_max_adc", value);
+        if (r == ESP_OK) config_params.moisture_max_adc = value;
 #endif
     } else {
         ESP_LOGW(TAG, "Unknown config key or value not changed: %s", name);
