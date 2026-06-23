@@ -26,7 +26,15 @@ config MQTT_TOPIC
 
 config REPORT_INTERVAL_S
     int "Reporting interval (seconds)"
-    default 60
+    default 1800
+
+config RESTART_INTERVAL_S
+    int "Restart interval (seconds)"
+    default 600
+    help
+        If set to a non-zero value, the device will restart itself after this
+        many seconds. This can be useful for devices that need to reset
+        periodically to avoid memory leaks or other issues.
 
 endmenu
 

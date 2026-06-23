@@ -59,10 +59,15 @@ static void fw_version_publish(const char *fw_version)
     mqtt_publish("version", fw_version, strlen(fw_version));
 }
 
-static void deep_sleep()
+static void deep_sleep(bool restart)
 {
     config_t *cfg = get_config_ptr();
-    int report_interval_seconds = cfg->report_interval_seconds;
+    int deep_sleep_seconds = 0;
+    if(restart) {
+        deep_sleep_seconds = cfg->restart_interval_seconds;
+    } else {
+        deep_sleep_seconds = cfg->report_interval_seconds;
+    }
     esp_err_t err;
     
     mqtt_cleanup();
@@ -78,10 +83,10 @@ static void deep_sleep()
         ESP_LOGW(TAG, "rtc_gpio_init failed for %d", WAKEUP_PIN);
     }
 
-    ESP_LOGI(TAG, "Entering deep sleep for %d seconds (WAKEUP button will wake device)", report_interval_seconds);
+    ESP_LOGI(TAG, "Entering deep sleep for %d seconds (WAKEUP button will wake device)", deep_sleep_seconds);
     esp_sleep_enable_ext1_wakeup((1ULL << WAKEUP_PIN), ESP_EXT1_WAKEUP_ANY_LOW); // wake on low level
 
-    err = esp_deep_sleep_try((uint64_t)report_interval_seconds * 1000000ULL);
+    err = esp_deep_sleep_try((uint64_t)deep_sleep_seconds * 1000000ULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_deep_sleep_try() failed: %s", esp_err_to_name(err));
         // wait briefly to flush logs then attempt to start deep sleep anyway
@@ -151,8 +156,8 @@ void app_main(void)
     }
 
     if(!init()) {
-        ESP_LOGE(TAG, "Failed to initialize WiFi/MQTT. Restarting...");
-        esp_restart();
+        ESP_LOGE(TAG, "Failed to initialize WiFi/MQTT. Deep sleep...");
+        deep_sleep(true); // restart after RESTART_INTERVAL_SECONDS
     }
 
     config_subscribe();
@@ -182,5 +187,5 @@ void app_main(void)
 
     vTaskDelay(pdMS_TO_TICKS(1000)); // wait a bit to ensure messages are sent before deep sleep
 
-    deep_sleep();    
+    deep_sleep(false);    
 }

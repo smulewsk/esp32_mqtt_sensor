@@ -16,6 +16,7 @@
 #define MQTT_PASS CONFIG_MQTT_PASSWORD
 #define MQTT_TOPIC CONFIG_MQTT_TOPIC
 #define REPORT_INTERVAL_SECONDS CONFIG_REPORT_INTERVAL_S
+#define RESTART_INTERVAL_SECONDS CONFIG_RESTART_INTERVAL_S
 
 #define BAT_ADC_CHANNEL CONFIG_BAT_ADC_CHANNEL
 #define DIV_R1_OHMS CONFIG_BATTERY_DIVIDER_R1
@@ -35,6 +36,7 @@ int battery_percent_from_mv(int mv);
 // Config
 typedef struct config_t {
     int report_interval_seconds;
+    int restart_interval_seconds;
     int battery_min_mv;
     int battery_max_mv;
 #if CONFIG_DISTANCE_ENABLE
