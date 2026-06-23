@@ -12,9 +12,7 @@
 
 static const char *TAG = "main";
 
-// GPIO7 is the WAKEUP button on ESP32-C6 (and most ESP32 dev boards).
-// Change this if your board uses a different pin.
-#define WAKEUP_PIN 7
+#define WAKEUP_PIN CONFIG_AP_MODE_GPIO
 
 static bool boot_pin_held_for_5s(void)
 {

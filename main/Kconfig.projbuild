@@ -36,6 +36,14 @@ config RESTART_INTERVAL_S
         many seconds. This can be useful for devices that need to reset
         periodically to avoid memory leaks or other issues.
 
+config AP_MODE_GPIO
+    int "GPIO for AP mode button (-1 to disable)"
+    default -1
+    help
+        GPIO number connected to a button that, when pressed during boot,
+        will cause the device to enter AP mode for configuration. Set to -1
+        to disable this feature.
+
 endmenu
 
 menu "Battery monitoring"
