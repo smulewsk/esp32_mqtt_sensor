@@ -5,10 +5,10 @@
 #include <stdint.h>
 
 // default pins (can be changed before init if needed)
-#define VL53L0X_I2C_SDA_GPIO 21
-#define VL53L0X_I2C_SCL_GPIO 22
-#define VL53L0X_I2C_PORT I2C_NUM_0
-#define VL53L0X_I2C_FREQ_HZ 400000
+#define VL53L0X_I2C_SDA_GPIO CONFIG_VL53L0X_I2C_SDA_GPIO
+#define VL53L0X_I2C_SCL_GPIO CONFIG_VL53L0X_I2C_SCL_GPIO
+#define VL53L0X_I2C_PORT CONFIG_VL53L0X_I2C_PORT
+#define VL53L0X_I2C_FREQ_HZ CONFIG_VL53L0X_I2C_FREQ_HZ
 
 // initialize I2C and probe VL53L0X at 0x29
 bool vl53l0x_init(void);

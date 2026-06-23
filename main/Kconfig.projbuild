@@ -94,6 +94,44 @@ config VL53L0X_ENABLE
         Internal symbol. Selected by the distance sensor choice when VL53L0X
         is chosen. Do not enable directly.
 
+config VL53L0X_I2C_ADDRESS
+    int "VL53L0X I2C address (0x29 or 0x52)"
+    default 41
+    depends on VL53L0X_ENABLE
+    help
+        I2C address of the VL53L0X sensor. Default is 0x29 (decimal 41).
+        If you have multiple VL53L0X sensors on the same bus, you can change
+        the address of one of them to 0x52 (decimal 82) using the sensor's
+        API.
+
+config VL53L0X_I2C_SDA_GPIO
+    int "VL53L0X I2C SDA GPIO"
+    default 21
+    depends on VL53L0X_ENABLE
+    help
+        GPIO number for the I2C SDA line connected to the VL53L0X sensor.
+
+config VL53L0X_I2C_SCL_GPIO
+    int "VL53L0X I2C SCL GPIO"
+    default 22
+    depends on VL53L0X_ENABLE
+    help
+        GPIO number for the I2C SCL line connected to the VL53L0X sensor.
+
+config VL53L0X_I2C_PORT
+    int "VL53L0X I2C port number"
+    default 0
+    depends on VL53L0X_ENABLE
+    help
+        I2C port number to use for communication with the VL53L0X sensor.
+
+config VL53L0X_I2C_FREQ_HZ
+    int "VL53L0X I2C frequency (Hz)"
+    default 400000
+    depends on VL53L0X_ENABLE
+    help
+        I2C bus frequency for communication with the VL53L0X sensor. Default is 400kHz.
+
 config VL53L1X_ENABLE
     bool "VL53L1X distance sensor support"
     default y
@@ -101,6 +139,45 @@ config VL53L1X_ENABLE
     help
         Internal symbol. Selected by the distance sensor choice when VL53L1X
         is chosen. Do not enable directly.
+
+config VL53L1X_I2C_ADDRESS
+    int "VL53L1X I2C address (0x29 or 0x52)"
+    default 41
+    depends on VL53L1X_ENABLE
+    help
+        I2C address of the VL53L1X sensor. Default is 0x29 (decimal 41).
+        If you have multiple VL53L1X sensors on the same bus, you can change
+        the address of one of them to 0x52 (decimal 82) using the sensor's
+        API.
+
+config VL53L1X_I2C_SDA_GPIO
+    int "VL53L1X I2C SDA GPIO"
+    default 21
+    depends on VL53L1X_ENABLE
+    help
+        GPIO number for the I2C SDA line connected to the VL53L1X sensor.
+
+config VL53L1X_I2C_SCL_GPIO
+    int "VL53L1X I2C SCL GPIO"
+    default 22
+    depends on VL53L1X_ENABLE
+    help
+        GPIO number for the I2C SCL line connected to the VL53L1X sensor.
+
+config VL53L1X_I2C_PORT
+    int "VL53L1X I2C port number"
+    default 0
+    depends on VL53L1X_ENABLE
+    help
+        I2C port number to use for communication with the VL53L1X sensor.
+        ESP32 typically has two I2C ports (0 and 1).
+
+config VL53L1X_I2C_FREQ_HZ
+    int "VL53L1X I2C frequency (Hz)"
+    default 400000
+    depends on VL53L1X_ENABLE
+    help
+        I2C bus frequency for communication with the VL53L1X sensor. Default is 400kHz.
 
 config TL136_ENABLE
     bool "TL-136 distance sensor support"

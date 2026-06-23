@@ -9,7 +9,7 @@ static const char *TAG = "vl53l1x";
 static bool s_present = false;
 
 // VL53L1X I2C address
-#define VL53L1X_ADDR 0x29
+#define VL53L1X_ADDR CONFIG_VL53L1X_I2C_ADDRESS
 
 static esp_err_t i2c_master_init_default(void)
 {
