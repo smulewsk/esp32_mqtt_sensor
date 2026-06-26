@@ -13,25 +13,41 @@ permissions:
 
 jobs:
   build:
-    name: Build esp32c6
+    name: Build (per-board)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board: [beetle, seeed_xiao]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build with ESP-IDF
+      - name: Build with ESP-IDF (apply defaults and build)
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: v5.5.3
           target: esp32c6
-          command: idf.py build
+          command: |
+            set -euo pipefail
+            BOARD=${{ matrix.board }}
+            echo "Using defaults for: $BOARD"
+            SRC=sdkconfig.defaults.${BOARD}
+            if [ ! -f "$SRC" ]; then
+              echo "Missing $SRC file" >&2
+              exit 1
+            fi
+            rm -f sdkconfig
+            cp "$SRC" sdkconfig.defaults
+            idf.py reconfigure
+            idf.py -B build-${BOARD} build
+
       - name: Upload firmware artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: esp32_mqtt_sensor.bin
-          path: build/esp32_mqtt_sensor.bin
+          name: esp32_mqtt_sensor-${{ matrix.board }}.bin
+          path: build-${{ matrix.board }}/esp32_mqtt_sensor.bin
 
   post-build:
     name: Post-build tasks
@@ -89,10 +105,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Download firmware artifact
+      - name: Download all firmware artifacts
         uses: actions/download-artifact@v4
         with:
-          name: esp32_mqtt_sensor.bin
           path: .
 
       - name: Create GitHub Release
@@ -108,12 +123,15 @@ jobs:
           prerelease: false
           generateReleaseNotes: true
 
-      - name: Upload firmware to release
-        uses: actions/upload-release-asset@v1
+      - name: Upload firmware artifacts to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./esp32_mqtt_sensor.bin
-          asset_name: esp32_mqtt_sensor.bin
-          asset_content_type: application/octet-stream
+          UPLOAD_URL: ${{ steps.create_release.outputs.upload_url }}
+        run: |
+          for f in *.bin; do
+            echo "Uploading $f"
+            curl -s -X POST \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$f" "${UPLOAD_URL}?name=$(basename "$f")"
+          done
