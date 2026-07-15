@@ -1,7 +1,6 @@
----
 name: Build
 
-'on':
+on:
   push:
     branches: [main, master]
     paths-ignore:
@@ -123,9 +122,8 @@ jobs:
             echo "Tag ${TAG} already exists."
             tag_sha="$(git rev-list -n 1 "${TAG}")"
             if [ "${tag_sha}" != "${GITHUB_SHA}" ]; then
-              echo \
-                "Tag ${TAG} points to ${tag_sha}, not ${GITHUB_SHA}. "\
-                "Refusing to publish mismatched release." >&2
+              echo "Tag ${TAG} points to ${tag_sha}, not ${GITHUB_SHA}." >&2
+              echo "Refusing to publish mismatched release." >&2
               exit 1
             fi
             if gh release view "${TAG}" >/dev/null 2>&1; then
@@ -185,5 +183,5 @@ jobs:
           new="${major}.${minor}.${patch}"
           echo "$new" > VERSION
           git add VERSION
-          git commit -m "ci: bump version to ${new}"
+          git commit -m "ci: bump version to v${new}"
           git push origin HEAD
