@@ -101,7 +101,7 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          version="$(tr -d '\r\n' < VERSION)"
+          version="$(tr -d '[:space:]' < VERSION)"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "VERSION must be MAJOR.MINOR.PATCH, got: $version" >&2
             exit 1
@@ -118,7 +118,7 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
           should_bump_version=false
-          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+          if git rev-parse --verify "refs/tags/${TAG}" >/dev/null; then
             echo "Tag ${TAG} already exists."
             tag_sha="$(git rev-list -n 1 "${TAG}")"
             if [ "${tag_sha}" != "${GITHUB_SHA}" ]; then
